@@ -1,0 +1,80 @@
+:root {
+  /* Color Palette - Deep Tech Midnight Theme */
+  --bg-dark: #070B14;
+  --bg-primary: #0A0F1D;
+  --bg-surface: #0F172A;
+  --bg-surface-elevated: #162036;
+  --bg-card: rgba(18, 26, 47, 0.75);
+  --bg-card-hover: rgba(28, 39, 70, 0.85);
+
+  /* Glassmorphism & Borders */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-focus: #6366F1;
+  --glass-blur: blur(14px);
+
+  /* Accents */
+  --primary: #6366F1;
+  --primary-hover: #4F46E5;
+  --primary-light: #818CF8;
+  --primary-subtle: rgba(99, 102, 241, 0.12);
+  --primary-glow: rgba(99, 102, 241, 0.3);
+
+  /* Safety & Safe Zone (Emerald) */
+  --safe: #10B981;
+  --safe-hover: #059669;
+  --safe-light: #34D399;
+  --safe-bg: rgba(16, 185, 129, 0.12);
+  --safe-glow: rgba(16, 185, 129, 0.3);
+
+  /* SOS Alert & Hazard (Crimson) */
+  --danger: #EF4444;
+  --danger-hover: #DC2626;
+  --danger-light: #F87171;
+  --danger-bg: rgba(239, 68, 68, 0.14);
+  --danger-glow: rgba(239, 68, 68, 0.4);
+
+  /* Warning / Caution (Amber) */
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.12);
+
+  /* Cyan / Info */
+  --info: #06B6D4;
+  --info-bg: rgba(6, 182, 212, 0.12);
+
+  /* Typography Colors */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-dim: #64748B;
+
+  /* Typography Fonts */
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+
+  /* Radius */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow-primary: 0 0 24px var(--primary-glow);
+  --shadow-glow-danger: 0 0 32px var(--danger-glow);
+  --shadow-glow-safe: 0 0 24px var(--safe-glow);
+
+  /* Layout */
+  --max-width: 1240px;
+  --navbar-height: 72px;
+  --bottom-bar-height: 64px;
+
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
