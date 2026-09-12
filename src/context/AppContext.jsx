@@ -7,12 +7,91 @@ import {
   safetyModesData 
 } from '../data/initialData';
 import { playCountdownBeep, startEmergencySiren, stopEmergencySiren } from '../utils/audio';
+import { generateTrackingId } from '../utils/tracking';
 
 const AppContext = createContext();
 
+function getInitialRoute() {
+  if (typeof window !== 'undefined') {
+    const pathname = window.location.pathname || '';
+    if (/^\/track(?:\/|$)/i.test(pathname)) {
+      const trackMatch = pathname.match(/^\/track(?:\/([^/?#]+))?/i);
+      const rawId = (trackMatch && trackMatch[1]) 
+        ? decodeURIComponent(trackMatch[1].replace(/\/+$/, '')) 
+        : null;
+      return {
+        page: 'track',
+        trackingId: rawId || generateTrackingId()
+      };
+    }
+    const cleanPath = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
+    const validPages = [
+      'dashboard', 'journey', 'sos', 'contacts', 'map', 'report',
+      'community', 'safebot', 'resources', 'profile', 'about',
+      'routes', 'cab', 'intel', 'voice-gesture', 'evidence',
+      'privacy', 'history', 'track'
+    ];
+    if (validPages.includes(cleanPath)) {
+      return { page: cleanPath, trackingId: null };
+    }
+  }
+  return { page: 'home', trackingId: null };
+}
+
 export function AppProvider({ children }) {
-  // Navigation: 'home' | 'dashboard' | 'journey' | 'sos' | 'contacts' | 'map' | 'report' | 'community' | 'safebot' | 'resources' | 'profile' | 'about' | 'routes' | 'cab' | 'intel' | 'voice-gesture' | 'evidence' | 'privacy' | 'history'
-  const [currentPage, setCurrentPage] = useState('home');
+  // Navigation: 'home' | 'dashboard' | 'journey' | 'sos' | 'contacts' | 'map' | 'report' | 'community' | 'safebot' | 'resources' | 'profile' | 'about' | 'routes' | 'cab' | 'intel' | 'voice-gesture' | 'evidence' | 'privacy' | 'history' | 'track'
+  const initialRoute = getInitialRoute();
+  const [currentPage, setCurrentPageState] = useState(initialRoute.page);
+  const [currentTrackingId, setCurrentTrackingId] = useState(() => initialRoute.trackingId || generateTrackingId());
+
+  // Guarantee active tracking sync with browser URL on initial mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname || '';
+      if (/^\/track(?:\/|$)/i.test(pathname)) {
+        if (currentPage !== 'track') {
+          setCurrentPageState('track');
+        }
+        const trackMatch = pathname.match(/^\/track(?:\/([^/?#]+))?/i);
+        if (trackMatch && trackMatch[1]) {
+          const rawId = decodeURIComponent(trackMatch[1].replace(/\/+$/, ''));
+          if (rawId && currentTrackingId !== rawId) {
+            setCurrentTrackingId(rawId);
+          }
+        }
+      }
+    }
+  }, []);
+
+  const setCurrentPage = (page, options = {}) => {
+    setCurrentPageState(page);
+    if (options.trackingId) {
+      setCurrentTrackingId(options.trackingId);
+    }
+    if (typeof window !== 'undefined' && !options.skipPush) {
+      const activeId = options.trackingId || currentTrackingId || generateTrackingId();
+      const targetPath = page === 'home' 
+        ? '/' 
+        : page === 'track' 
+          ? `/track/${activeId}` 
+          : `/${page}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ page, trackingId: options.trackingId || currentTrackingId }, '', targetPath);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = getInitialRoute();
+      setCurrentPageState(route.page);
+      if (route.trackingId) {
+        setCurrentTrackingId(route.trackingId);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Language: 'en', 'hi', 'mr', 'ta', 'te', 'bn', 'kn', 'gu', 'ml', 'pa'
   const [language, setLanguage] = useState(() => {
@@ -137,13 +216,15 @@ export function AppProvider({ children }) {
 
   const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [sharingDuration, setSharingDuration] = useState('30m'); // '15m' | '30m' | '1h' | 'journey'
-  const [shareToken, setShareToken] = useState('nivarya-live-8923a1');
+  const [shareToken, setShareToken] = useState(() => initialRoute.trackingId || generateTrackingId());
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   const startLocationSharing = (duration = '30m') => {
+    const newToken = generateTrackingId();
     setIsSharingLocation(true);
     setSharingDuration(duration);
-    setShareToken(`nivarya-live-${Math.random().toString(36).substring(2, 8)}`);
+    setShareToken(newToken);
+    setCurrentTrackingId(newToken);
     showToast(`Live GPS sharing active for ${duration === 'journey' ? 'journey duration' : duration}`, 'safe');
     addSafetyHistory({
       type: 'location',
@@ -252,6 +333,9 @@ export function AppProvider({ children }) {
 
   const startJourney = (routeDetails) => {
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const journeyToken = generateTrackingId();
+    setShareToken(journeyToken);
+    setCurrentTrackingId(journeyToken);
     setActiveJourney({
       isActive: true,
       startPoint: routeDetails.startPoint || 'University Campus Gate',
@@ -829,6 +913,8 @@ export function AppProvider({ children }) {
         isSharingLocation,
         sharingDuration,
         shareToken,
+        currentTrackingId,
+        setCurrentTrackingId,
         startLocationSharing,
         stopLocationSharing,
         isLocationModalOpen,

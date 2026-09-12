@@ -33,6 +33,7 @@ import VoiceGestureSosPage from './pages/VoiceGestureSosPage';
 import EvidenceRecordingPage from './pages/EvidenceRecordingPage';
 import PrivacyDashboardPage from './pages/PrivacyDashboardPage';
 import SafetyHistoryPage from './pages/SafetyHistoryPage';
+import LiveTrackPage from './pages/LiveTrackPage';
 
 // Styles
 import './styles/globals.css';
@@ -41,6 +42,7 @@ import './styles/components.css';
 function MainApp() {
   const { 
     currentPage, 
+    currentTrackingId,
     isRespondersModalOpen, 
     setIsRespondersModalOpen,
     isLocationModalOpen,
@@ -48,6 +50,14 @@ function MainApp() {
   } = useApp();
 
   const renderCurrentPage = () => {
+    // Robust route check for /track/:trackingId or /track
+    const pathname = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+    const isTrackRoute = /^\/track(?:\/|$)/i.test(pathname) || currentPage === 'track';
+
+    if (isTrackRoute) {
+      return <LiveTrackPage trackingId={currentTrackingId} />;
+    }
+
     switch (currentPage) {
       case 'home':
         return <LandingPage />;
@@ -88,7 +98,12 @@ function MainApp() {
         return <PrivacyDashboardPage />;
       case 'history':
         return <SafetyHistoryPage />;
+      case 'track':
+        return <LiveTrackPage trackingId={currentTrackingId} />;
       default:
+        if (/^\/track/i.test(pathname)) {
+          return <LiveTrackPage trackingId={currentTrackingId} />;
+        }
         return <LandingPage />;
     }
   };

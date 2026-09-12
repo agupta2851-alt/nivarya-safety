@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { buildTrackingUrl } from '../utils/tracking';
 import { 
   MapPin, 
   Clock, 
@@ -9,7 +10,8 @@ import {
   X, 
   Navigation, 
   MessageSquare,
-  ShieldCheck
+  ShieldCheck,
+  ExternalLink
 } from 'lucide-react';
 
 export default function LocationSharingModal({ isOpen, onClose }) {
@@ -18,18 +20,21 @@ export default function LocationSharingModal({ isOpen, onClose }) {
     isSharingLocation, 
     sharingDuration, 
     shareToken, 
+    currentTrackingId,
     startLocationSharing, 
     stopLocationSharing, 
     selectedContactsForJourney, 
     contacts, 
-    showToast 
+    showToast,
+    setCurrentPage 
   } = useApp();
 
   const [selectedDuration, setSelectedDuration] = useState(sharingDuration || '30m');
 
   if (!isOpen) return null;
 
-  const liveLink = `https://nivarya.safety.app/track/${shareToken}`;
+  const trackingId = shareToken || currentTrackingId;
+  const liveLink = buildTrackingUrl(trackingId);
 
   const copyLiveLink = () => {
     navigator.clipboard.writeText(liveLink);
@@ -39,6 +44,11 @@ export default function LocationSharingModal({ isOpen, onClose }) {
   const shareViaWhatsApp = () => {
     const text = `Nivarya Live GPS Safe Tracking: I am sharing my live route with you for ${selectedDuration === 'journey' ? 'my journey duration' : selectedDuration}. Track my live position: ${liveLink} (Last seen near ${currentCoordinates.address})`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleOpenLiveTracking = () => {
+    if (onClose) onClose();
+    setCurrentPage('track', { trackingId });
   };
 
   const handleApplySharing = () => {
@@ -122,6 +132,9 @@ export default function LocationSharingModal({ isOpen, onClose }) {
             />
             <button onClick={copyLiveLink} className="btn btn-secondary btn-sm" title="Copy Link">
               <Copy size={16} />
+            </button>
+            <button onClick={handleOpenLiveTracking} className="btn btn-secondary btn-sm" title="Open Live Tracking View">
+              <ExternalLink size={16} />
             </button>
           </div>
         </div>
