@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { availableLanguages } from '../data/translations';
 import { safetyModesData } from '../data/initialData';
 import { 
@@ -24,7 +25,9 @@ import {
   Lock,
   History,
   SlidersHorizontal,
-  Sparkles
+  Sparkles,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -37,8 +40,11 @@ export default function Navbar() {
     triggerSos,
     safetyMode,
     changeSafetyMode,
-    setIsRespondersModalOpen
+    setIsRespondersModalOpen,
+    showToast
   } = useApp();
+
+  const { currentUser, isAuthenticated, logout } = useAuth();
 
   const [isLangOpen, setIsLangOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -275,15 +281,65 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Profile Quick Link */}
-            <button
-              className={`btn btn-secondary btn-sm ${currentPage === 'profile' ? 'active' : ''}`}
-              onClick={() => handleNavClick('profile')}
-              title="Profile & Settings"
-            >
-              <UserCheck size={16} />
-              <span className="hide-on-mobile">Profile</span>
-            </button>
+            {/* Auth Action: Login or Profile & Logout */}
+            {!isAuthenticated ? (
+              <button
+                className={`btn btn-primary btn-sm ${currentPage === 'login' ? 'active' : ''}`}
+                onClick={() => handleNavClick('login')}
+                title="Log In or Create Account"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-sm)'
+                }}
+              >
+                <LogIn size={15} />
+                <span>Log In</span>
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  className={`btn btn-secondary btn-sm ${currentPage === 'profile' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('profile')}
+                  title={`Signed in as ${currentUser?.name || 'User'}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 10px' }}
+                >
+                  <div style={{
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    color: '#FFFFFF'
+                  }}>
+                    {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="hide-on-mobile" style={{ maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                    {currentUser?.name ? currentUser.name.split(' ')[0] : 'Profile'}
+                  </span>
+                </button>
+
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={async () => {
+                    await logout();
+                    showToast('Logged out safely. Take care!', 'info');
+                    setCurrentPage('home');
+                  }}
+                  title="Log Out"
+                  style={{ color: 'var(--text-muted)', padding: '6px 8px' }}
+                  aria-label="Log Out"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            )}
 
             {/* Emergency SOS Nav Trigger */}
             <button 
@@ -344,19 +400,69 @@ export default function Navbar() {
             </button>
           ))}
 
-          <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '8px', paddingTop: '8px' }}>
-            <button
-              className={`mobile-nav-link ${currentPage === 'contacts' ? 'active' : ''}`}
-              onClick={() => handleNavClick('contacts')}
-            >
-              {t.nav.contacts}
-            </button>
-            <button
-              className={`mobile-nav-link ${currentPage === 'profile' ? 'active' : ''}`}
-              onClick={() => handleNavClick('profile')}
-            >
-              {t.nav.profile}
-            </button>
+          <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {!isAuthenticated ? (
+              <>
+                <button
+                  className={`mobile-nav-link ${currentPage === 'login' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('login')}
+                  style={{ background: 'var(--primary-subtle)', borderColor: 'rgba(99, 102, 241, 0.4)', color: '#FFFFFF' }}
+                >
+                  <LogIn size={18} color="#818CF8" />
+                  <span>Log In to Nivarya</span>
+                </button>
+                <button
+                  className={`mobile-nav-link ${currentPage === 'signup' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('signup')}
+                >
+                  <UserCheck size={18} />
+                  <span>Create Safety Account</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`mobile-nav-link ${currentPage === 'contacts' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('contacts')}
+                >
+                  {t.nav.contacts}
+                </button>
+                <button
+                  className={`mobile-nav-link ${currentPage === 'profile' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('profile')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+                >
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: '#FFFFFF'
+                  }}>
+                    {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span>{currentUser?.name || t.nav.profile}</span>
+                </button>
+                <button
+                  className="mobile-nav-link"
+                  onClick={async () => {
+                    await logout();
+                    setIsMobileMenuOpen(false);
+                    showToast('Logged out safely.', 'info');
+                    setCurrentPage('home');
+                  }}
+                  style={{ color: '#F87171' }}
+                >
+                  <LogOut size={18} />
+                  <span>Log Out</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import MobileBottomBar from './components/MobileBottomBar';
@@ -10,6 +11,11 @@ import LowBatteryModal from './components/LowBatteryModal';
 import OfflineEmergencyBanner from './components/OfflineEmergencyBanner';
 import NearbyRespondersModal from './components/NearbyRespondersModal';
 import LocationSharingModal from './components/LocationSharingModal';
+import ProtectedRoute from './components/ProtectedRoute';
+
+// Authentication Pages
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 
 // Existing Pages
 import LandingPage from './pages/LandingPage';
@@ -61,14 +67,26 @@ function MainApp() {
     switch (currentPage) {
       case 'home':
         return <LandingPage />;
+      case 'login':
+        return <LoginPage />;
+      case 'signup':
+        return <SignupPage />;
       case 'dashboard':
-        return <DashboardPage />;
+        return (
+          <ProtectedRoute title="Personal Safety Dashboard">
+            <DashboardPage />
+          </ProtectedRoute>
+        );
       case 'journey':
         return <SafeJourneyPage />;
       case 'sos':
         return <EmergencyPage />;
       case 'contacts':
-        return <TrustedContactsPage />;
+        return (
+          <ProtectedRoute title="Trusted Guardian Network">
+            <TrustedContactsPage />
+          </ProtectedRoute>
+        );
       case 'map':
         return <SafetyMapPage />;
       case 'report':
@@ -80,7 +98,11 @@ function MainApp() {
       case 'resources':
         return <ResourcesPage />;
       case 'profile':
-        return <ProfilePage />;
+        return (
+          <ProtectedRoute title="Identity & Emergency Settings">
+            <ProfilePage />
+          </ProtectedRoute>
+        );
       case 'about':
         return <AboutPage />;
       // Advanced New Safety Features
@@ -95,9 +117,17 @@ function MainApp() {
       case 'evidence':
         return <EvidenceRecordingPage />;
       case 'privacy':
-        return <PrivacyDashboardPage />;
+        return (
+          <ProtectedRoute title="Privacy & Data Purge Controls">
+            <PrivacyDashboardPage />
+          </ProtectedRoute>
+        );
       case 'history':
-        return <SafetyHistoryPage />;
+        return (
+          <ProtectedRoute title="Safety History & Audit Logs">
+            <SafetyHistoryPage />
+          </ProtectedRoute>
+        );
       case 'track':
         return <LiveTrackPage trackingId={currentTrackingId} />;
       default:
@@ -157,7 +187,9 @@ function MainApp() {
 export default function App() {
   return (
     <AppProvider>
-      <MainApp />
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
     </AppProvider>
   );
 }

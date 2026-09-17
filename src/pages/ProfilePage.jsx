@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { availableLanguages } from '../data/translations';
 import { safetyModesData } from '../data/initialData';
 import { 
@@ -17,7 +18,8 @@ import {
   BatteryCharging,
   Sliders,
   Sparkles,
-  Download
+  Download,
+  LogOut
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -36,6 +38,8 @@ export default function ProfilePage() {
     exportPersonalData,
     t 
   } = useApp();
+
+  const { currentUser, logout } = useAuth();
 
   const [name, setName] = useState(userProfile.name);
   const [phone, setPhone] = useState(userProfile.phone);
@@ -82,6 +86,65 @@ export default function ProfilePage() {
           {t.profile.subtitle}
         </p>
       </div>
+
+      {/* Active Account Identity Card */}
+      {currentUser && (
+        <div className="glass-card" style={{
+          padding: '20px 24px',
+          borderRadius: '18px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          background: 'rgba(99, 102, 241, 0.08)',
+          border: '1px solid rgba(99, 102, 241, 0.25)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.15rem',
+              fontWeight: 800,
+              color: '#FFFFFF',
+              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+            }}>
+              {(currentUser.name || 'U').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '1.02rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>{currentUser.name}</span>
+                <span className="badge badge-safe" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
+                  {currentUser.provider === 'google' ? 'Google SSO' : 'Verified Member'}
+                </span>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                {currentUser.email} • {currentUser.phone || userProfile.phone}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={async () => {
+              await logout();
+              showToast('Logged out of your safety profile.', 'info');
+              setCurrentPage('home');
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#F87171', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+          >
+            <LogOut size={15} />
+            <span>Log Out</span>
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSaveProfile}>
         {/* 1. Personal Information */}

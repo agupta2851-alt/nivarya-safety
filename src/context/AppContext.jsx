@@ -26,6 +26,7 @@ function getInitialRoute() {
     }
     const cleanPath = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
     const validPages = [
+      'login', 'signup',
       'dashboard', 'journey', 'sos', 'contacts', 'map', 'report',
       'community', 'safebot', 'resources', 'profile', 'about',
       'routes', 'cab', 'intel', 'voice-gesture', 'evidence',
@@ -39,7 +40,7 @@ function getInitialRoute() {
 }
 
 export function AppProvider({ children }) {
-  // Navigation: 'home' | 'dashboard' | 'journey' | 'sos' | 'contacts' | 'map' | 'report' | 'community' | 'safebot' | 'resources' | 'profile' | 'about' | 'routes' | 'cab' | 'intel' | 'voice-gesture' | 'evidence' | 'privacy' | 'history' | 'track'
+  // Navigation: 'home' | 'login' | 'signup' | 'dashboard' | 'journey' | 'sos' | 'contacts' | 'map' | 'report' | 'community' | 'safebot' | 'resources' | 'profile' | 'about' | 'routes' | 'cab' | 'intel' | 'voice-gesture' | 'evidence' | 'privacy' | 'history' | 'track'
   const initialRoute = getInitialRoute();
   const [currentPage, setCurrentPageState] = useState(initialRoute.page);
   const [currentTrackingId, setCurrentTrackingId] = useState(() => initialRoute.trackingId || generateTrackingId());

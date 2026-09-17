@@ -57,6 +57,8 @@ export default function Footer() {
               <li><span className="footer-link" onClick={() => handleLink('resources')}>Medical Trauma (108)</span></li>
               <li><span className="footer-link" onClick={() => handleLink('contacts')}>Manage Trusted Contacts</span></li>
               <li><span className="footer-link" onClick={() => handleLink('profile')}>Emergency Profile & PIN</span></li>
+              <li><span className="footer-link" onClick={() => handleLink('login')}>Member Log In</span></li>
+              <li><span className="footer-link" onClick={() => handleLink('signup')}>Create Safety Account</span></li>
             </ul>
           </div>
 
