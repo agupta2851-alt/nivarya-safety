@@ -10,13 +10,12 @@ import {
   Menu, 
   X, 
   ChevronDown,
+  ChevronRight,
   Navigation, 
-  Radio, 
   Users, 
   FileText, 
   Bot, 
   PhoneCall, 
-  Info,
   UserCheck,
   Compass,
   Car,
@@ -25,9 +24,11 @@ import {
   Lock,
   History,
   SlidersHorizontal,
-  Sparkles,
   LogIn,
-  LogOut
+  LogOut,
+  Home,
+  LayoutDashboard,
+  MapPin
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -40,7 +41,6 @@ export default function Navbar() {
     triggerSos,
     safetyMode,
     changeSafetyMode,
-    setIsRespondersModalOpen,
     showToast
   } = useApp();
 
@@ -50,6 +50,7 @@ export default function Navbar() {
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileToolsExpanded, setIsMobileToolsExpanded] = useState(true);
 
   const toolsRef = useRef(null);
   const langRef = useRef(null);
@@ -66,14 +67,40 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
+  // Lock body scroll when mobile menu is open to prevent accidental background scrolling
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
+
+  // Handle escape key to close mobile menu
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+        setIsToolsOpen(false);
+        setIsLangOpen(false);
+        setIsModeMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const navItems = [
-    { id: 'home', label: t.nav.home },
-    { id: 'dashboard', label: t.nav.dashboard },
-    { id: 'journey', label: t.nav.safeJourney },
-    { id: 'map', label: t.nav.safetyMap },
-    { id: 'community', label: t.nav.community },
-    { id: 'resources', label: t.nav.resources },
-    { id: 'safebot', label: t.nav.safeBot }
+    { id: 'home', label: t.nav.home || 'Home', icon: <Home size={18} /> },
+    { id: 'dashboard', label: t.nav.dashboard || 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { id: 'journey', label: t.nav.safeJourney || 'Safe Journey', icon: <Navigation size={18} /> },
+    { id: 'map', label: t.nav.safetyMap || 'Safety Map', icon: <MapPin size={18} /> },
+    { id: 'community', label: t.nav.community || 'Community', icon: <Users size={18} /> },
+    { id: 'resources', label: t.nav.resources || 'Resources', icon: <FileText size={18} /> },
+    { id: 'safebot', label: t.nav.safeBot || 'SafeBot AI', icon: <Bot size={18} /> }
   ];
 
   const safetyToolsItems = [
@@ -87,6 +114,7 @@ export default function Navbar() {
   ];
 
   const currentModeObj = safetyModesData.find(m => m.id === safetyMode) || safetyModesData[0];
+  const isSafetyToolsActive = ['routes', 'cab', 'intel', 'voice-gesture', 'evidence', 'history', 'privacy'].includes(currentPage);
 
   const handleNavClick = (id) => {
     setCurrentPage(id);
@@ -106,8 +134,8 @@ export default function Navbar() {
               <img src="/shield.svg" alt="Nivarya Shield" className="brand-logo-img" />
             </div>
             <div className="brand-text-block">
-              <span className="brand-title">{t.brandName}</span>
-              <span className="brand-tagline">{t.tagline}</span>
+              <span className="brand-title">{t.brandName || 'NIVARYA'}</span>
+              <span className="brand-tagline">{t.tagline || 'Move Without Fear.'}</span>
             </div>
           </div>
 
@@ -126,7 +154,7 @@ export default function Navbar() {
             {/* Safety Tools Dropdown */}
             <div className="tools-dropdown-wrap" ref={toolsRef} style={{ position: 'relative' }}>
               <button 
-                className={`nav-link ${['routes', 'cab', 'intel', 'voice-gesture', 'evidence', 'history', 'privacy'].includes(currentPage) ? 'active' : ''}`}
+                className={`nav-link ${isSafetyToolsActive ? 'active' : ''}`}
                 onClick={() => setIsToolsOpen(!isToolsOpen)}
                 style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
               >
@@ -184,7 +212,7 @@ export default function Navbar() {
 
           {/* Right Action Bar */}
           <div className="nav-actions">
-            {/* Safety Mode Indicator Pill */}
+            {/* Safety Mode Indicator Pill (Desktop Only) */}
             <div ref={modeRef} style={{ position: 'relative' }} className="hide-on-mobile">
               <button 
                 onClick={() => setIsModeMenuOpen(!isModeMenuOpen)}
@@ -255,8 +283,8 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Language Switcher */}
-            <div className="lang-selector" ref={langRef}>
+            {/* Language Switcher (Desktop Only) */}
+            <div className="lang-selector hide-on-mobile" ref={langRef}>
               <button 
                 className="lang-btn"
                 onClick={() => setIsLangOpen(!isLangOpen)}
@@ -281,73 +309,75 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Auth Action: Login or Profile & Logout */}
-            {!isAuthenticated ? (
-              <button
-                className={`btn btn-primary btn-sm ${currentPage === 'login' ? 'active' : ''}`}
-                onClick={() => handleNavClick('login')}
-                title="Log In or Create Account"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: 'var(--radius-sm)'
-                }}
-              >
-                <LogIn size={15} />
-                <span>Log In</span>
-              </button>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Desktop Auth Action: Login or Profile & Logout */}
+            <div className="nav-auth-desktop">
+              {!isAuthenticated ? (
                 <button
-                  className={`btn btn-secondary btn-sm ${currentPage === 'profile' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('profile')}
-                  title={`Signed in as ${currentUser?.name || 'User'}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 10px' }}
-                >
-                  <div style={{
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+                  className={`btn btn-primary btn-sm ${currentPage === 'login' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('login')}
+                  title="Log In or Create Account"
+                  style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    color: '#FFFFFF'
-                  }}>
-                    {(currentUser?.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="hide-on-mobile" style={{ maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
-                    {currentUser?.name ? currentUser.name.split(' ')[0] : 'Profile'}
-                  </span>
-                </button>
-
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={async () => {
-                    await logout();
-                    showToast('Logged out safely. Take care!', 'info');
-                    setCurrentPage('home');
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: 'var(--radius-sm)'
                   }}
-                  title="Log Out"
-                  style={{ color: 'var(--text-muted)', padding: '6px 8px' }}
-                  aria-label="Log Out"
                 >
-                  <LogOut size={16} />
+                  <LogIn size={15} />
+                  <span>Log In</span>
                 </button>
-              </div>
-            )}
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button
+                    className={`btn btn-secondary btn-sm ${currentPage === 'profile' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('profile')}
+                    title={`Signed in as ${currentUser?.name || 'User'}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 10px' }}
+                  >
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      color: '#FFFFFF'
+                    }}>
+                      {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                      {currentUser?.name ? currentUser.name.split(' ')[0] : 'Profile'}
+                    </span>
+                  </button>
 
-            {/* Emergency SOS Nav Trigger */}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={async () => {
+                      await logout();
+                      showToast('Logged out safely. Take care!', 'info');
+                      setCurrentPage('home');
+                    }}
+                    title="Log Out"
+                    style={{ color: 'var(--text-muted)', padding: '6px 8px' }}
+                    aria-label="Log Out"
+                  >
+                    <LogOut size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Emergency SOS Nav Trigger (Always accessible on mobile and desktop) */}
             <button 
               className="btn-nav-sos"
               onClick={triggerSos}
               title="Emergency SOS Instant Trigger"
             >
-              <AlertTriangle size={16} />
+              <AlertTriangle size={15} />
               <span>{t.emergencySosShort || 'SOS'}</span>
             </button>
 
@@ -355,7 +385,8 @@ export default function Navbar() {
             <button 
               className="btn-mobile-menu"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle Menu"
+              aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isMobileMenuOpen}
             >
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -371,49 +402,99 @@ export default function Navbar() {
 
       {/* Mobile Drawer */}
       {isMobileMenuOpen && (
-        <div className="mobile-drawer animate-fade-in" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-          <div style={{ padding: '8px 16px', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700 }}>
-            Main Navigation
-          </div>
+        <div 
+          className="mobile-drawer animate-fade-in" 
+          role="dialog" 
+          aria-modal="true" 
+          aria-label="Mobile Navigation"
+        >
+          {/* Main Navigation Section */}
+          <div className="mobile-drawer-section-title">Main Navigation</div>
           {navItems.map(item => (
             <button
               key={item.id}
               className={`mobile-nav-link ${currentPage === item.id ? 'active' : ''}`}
               onClick={() => handleNavClick(item.id)}
             >
-              {item.label}
-            </button>
-          ))}
-
-          <div style={{ padding: '12px 16px 4px 16px', color: 'var(--primary-light)', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, borderTop: '1px solid var(--border-subtle)', marginTop: '8px' }}>
-            Advanced Safety Tools
-          </div>
-          {safetyToolsItems.map(item => (
-            <button
-              key={item.id}
-              className={`mobile-nav-link ${currentPage === item.id ? 'active' : ''}`}
-              onClick={() => handleNavClick(item.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-            >
-              {item.icon}
+              <span style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                color: currentPage === item.id ? 'var(--primary-light)' : 'var(--text-muted)' 
+              }}>
+                {item.icon}
+              </span>
               <span>{item.label}</span>
             </button>
           ))}
 
-          <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: '8px', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Safety Tools Accordion */}
+          <div className="mobile-drawer-section-title" style={{ marginTop: '8px' }}>Safety Tools & Defense</div>
+          <div className="mobile-tools-accordion">
+            <button
+              className={`mobile-tools-trigger ${isSafetyToolsActive ? 'active' : ''}`}
+              onClick={() => setIsMobileToolsExpanded(!isMobileToolsExpanded)}
+              aria-expanded={isMobileToolsExpanded}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <SlidersHorizontal size={17} color="#818CF8" />
+                <span>Safety Tools</span>
+                <span style={{ 
+                  fontSize: '0.7rem', 
+                  padding: '2px 7px', 
+                  borderRadius: '9999px', 
+                  background: 'rgba(99, 102, 241, 0.2)', 
+                  color: 'var(--primary-light)',
+                  fontWeight: 700 
+                }}>
+                  {safetyToolsItems.length}
+                </span>
+              </div>
+              <ChevronDown 
+                size={16} 
+                style={{ 
+                  transform: isMobileToolsExpanded ? 'rotate(180deg)' : 'none', 
+                  transition: 'transform 0.2s',
+                  color: 'var(--text-muted)'
+                }} 
+              />
+            </button>
+
+            {isMobileToolsExpanded && (
+              <div className="mobile-tools-panel">
+                {safetyToolsItems.map(tool => (
+                  <button
+                    key={tool.id}
+                    className={`mobile-subtool-link ${currentPage === tool.id ? 'active' : ''}`}
+                    onClick={() => handleNavClick(tool.id)}
+                  >
+                    <div style={{ flexShrink: 0 }}>{tool.icon}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                      <span style={{ color: '#FFFFFF', fontWeight: 600, fontSize: '0.85rem' }}>{tool.label}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{tool.desc}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Authentication & User Account Section */}
+          <div className="mobile-auth-container">
+            <div className="mobile-drawer-section-title" style={{ padding: '0 4px' }}>Account & Security</div>
             {!isAuthenticated ? (
               <>
                 <button
-                  className={`mobile-nav-link ${currentPage === 'login' ? 'active' : ''}`}
+                  className={`mobile-btn-login ${currentPage === 'login' ? 'active' : ''}`}
                   onClick={() => handleNavClick('login')}
-                  style={{ background: 'var(--primary-subtle)', borderColor: 'rgba(99, 102, 241, 0.4)', color: '#FFFFFF' }}
+                  title="Log In to Nivarya"
                 >
-                  <LogIn size={18} color="#818CF8" />
+                  <LogIn size={18} />
                   <span>Log In to Nivarya</span>
                 </button>
                 <button
-                  className={`mobile-nav-link ${currentPage === 'signup' ? 'active' : ''}`}
+                  className={`mobile-btn-signup ${currentPage === 'signup' ? 'active' : ''}`}
                   onClick={() => handleNavClick('signup')}
+                  title="Create Safety Account"
                 >
                   <UserCheck size={18} />
                   <span>Create Safety Account</span>
@@ -421,48 +502,124 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <div 
+                  className="mobile-user-profile-card"
+                  onClick={() => handleNavClick('profile')}
+                  title="View Profile Settings"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: '#FFFFFF',
+                      flexShrink: 0
+                    }}>
+                      {(currentUser?.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#FFFFFF' }}>
+                        {currentUser?.name || 'Safety User'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--safe-light)' }}>
+                        Guardian Shield Active
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} color="var(--text-muted)" />
+                </div>
+
                 <button
                   className={`mobile-nav-link ${currentPage === 'contacts' ? 'active' : ''}`}
                   onClick={() => handleNavClick('contacts')}
+                  style={{ marginTop: '2px' }}
                 >
-                  {t.nav.contacts}
+                  <PhoneCall size={18} color="#10B981" />
+                  <span>{t.nav.contacts || 'Trusted Contacts'}</span>
                 </button>
+
                 <button
-                  className={`mobile-nav-link ${currentPage === 'profile' ? 'active' : ''}`}
-                  onClick={() => handleNavClick('profile')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
-                >
-                  <div style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #6366F1 0%, #10B981 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    color: '#FFFFFF'
-                  }}>
-                    {(currentUser?.name || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span>{currentUser?.name || t.nav.profile}</span>
-                </button>
-                <button
-                  className="mobile-nav-link"
+                  className="mobile-btn-logout"
                   onClick={async () => {
                     await logout();
                     setIsMobileMenuOpen(false);
                     showToast('Logged out safely.', 'info');
                     setCurrentPage('home');
                   }}
-                  style={{ color: '#F87171' }}
                 >
-                  <LogOut size={18} />
+                  <LogOut size={17} />
                   <span>Log Out</span>
                 </button>
               </>
             )}
+          </div>
+
+          {/* Quick Context Settings on Mobile */}
+          <div className="mobile-context-row">
+            <div className="mobile-drawer-section-title" style={{ padding: '0 4px' }}>Safety Context & Language</div>
+            {/* Safety Mode Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Context Mode:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {safetyModesData.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => changeSafetyMode(m.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '5px 10px',
+                      borderRadius: '9999px',
+                      background: safetyMode === m.id ? 'rgba(99, 102, 241, 0.25)' : 'var(--bg-surface)',
+                      border: `1px solid ${safetyMode === m.id ? m.color : 'var(--border-subtle)'}`,
+                      color: safetyMode === m.id ? '#FFFFFF' : 'var(--text-secondary)',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: m.color }}></span>
+                    <span>{m.name}</span>
+                    {safetyMode === m.id && <span style={{ color: 'var(--safe-light)', fontSize: '0.72rem' }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language Selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Globe size={13} />
+                <span>Language:</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                {availableLanguages.map(item => (
+                  <button
+                    key={item.code}
+                    onClick={() => changeLanguage(item.code)}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 'var(--radius-xs)',
+                      background: language === item.code ? 'var(--primary-subtle)' : 'rgba(255, 255, 255, 0.04)',
+                      border: `1px solid ${language === item.code ? 'var(--primary)' : 'var(--border-subtle)'}`,
+                      color: language === item.code ? '#FFFFFF' : 'var(--text-secondary)',
+                      fontSize: '0.76rem',
+                      fontWeight: language === item.code ? 700 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {item.native}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
