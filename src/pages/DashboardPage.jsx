@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import SafetyModeSwitcher from '../components/SafetyModeSwitcher';
 import { 
   ShieldCheck, 
@@ -30,6 +31,7 @@ import {
 import { emergencyResourcesList } from '../data/initialData';
 
 export default function DashboardPage() {
+  const { currentUser } = useAuth();
   const { 
     userProfile, 
     contacts, 
@@ -40,11 +42,20 @@ export default function DashboardPage() {
     showToast,
     setIsRespondersModalOpen,
     setIsLocationModalOpen,
+    isLocationConsentModalOpen,
+    setIsLocationConsentModalOpen,
+    locationState,
     batteryLevel,
     isLowBatteryMode,
     toggleLowBatteryMode,
     t 
   } = useApp();
+
+  const displayName = userProfile?.name || currentUser?.name || '';
+  const isProfileIncomplete = !displayName || (!userProfile?.isProfileComplete && !currentUser?.isProfileComplete);
+  const locationLabel = locationState?.coords
+    ? `GPS Active: ${locationState.coords.lat.toFixed(4)}°N, ${locationState.coords.lng.toFixed(4)}°E`
+    : (userProfile?.city ? `Location: ${userProfile.city}${userProfile.location ? ` (${userProfile.location})` : ''}` : 'Location: Not Set');
 
   const handleQuickCall = (phone, name) => {
     window.location.href = `tel:${phone}`;
@@ -109,24 +120,70 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-page container animate-fade-in" style={{ paddingTop: '24px', paddingBottom: '60px' }}>
+      {/* Incomplete Profile Alert Banner */}
+      {isProfileIncomplete && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(15, 23, 42, 0.9) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.4)',
+          borderRadius: '16px',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={22} color="#FBBF24" style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ color: '#FBBF24', fontWeight: 700, fontSize: '0.95rem' }}>Profile Incomplete</div>
+              <div style={{ color: '#CBD5E1', fontSize: '0.85rem' }}>
+                Set your actual emergency contact, safety PIN, and location preferences to ensure full emergency protection.
+              </div>
+            </div>
+          </div>
+          <button 
+            className="btn btn-primary btn-sm"
+            onClick={() => setCurrentPage('profile-setup')}
+            style={{ fontWeight: 700 }}
+          >
+            Complete your profile
+          </button>
+        </div>
+      )}
+
       {/* 1. Welcome & Status Banner */}
       <div className="dashboard-banner">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.85rem', color: '#94A3B8' }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
             <span className="badge badge-primary">Platform v2.4 Enterprise Guard</span>
-            {isLowBatteryMode && (
+            {isLowBatteryMode && batteryLevel != null && (
               <span className="badge badge-danger">
                 <BatteryLow size={12} style={{ display: 'inline', marginRight: '4px' }} />
                 Low Power Mode ({batteryLevel}%)
               </span>
             )}
+            <span 
+              className="badge badge-outline"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setIsLocationConsentModalOpen(true)}
+              title="Click to change location source"
+            >
+              <MapPin size={11} style={{ display: 'inline', marginRight: '4px' }} />
+              {locationLabel}
+            </span>
           </div>
           <h1 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', color: '#FFFFFF', marginBottom: '8px' }}>
-            {t.dashboard.welcome}
+            {displayName ? `${t.dashboard.welcomePrefix || 'Welcome back,'} ${displayName}` : 'Welcome to Nivarya'}
           </h1>
-          <p style={{ color: '#CBD5E1', fontSize: '0.92rem', maxWidth: '520px' }}>
-            {t.dashboard.statusDesc}
+          <p style={{ color: '#CBD5E1', fontSize: '0.92rem', maxWidth: '540px' }}>
+            {locationState?.coords 
+              ? `Real device GPS locked (±${locationState.coords.accuracy}m) • Safety Shield Active`
+              : (userProfile?.city 
+                  ? `Monitored Safety Zone in ${userProfile.city} • Guardian Network Standing By` 
+                  : 'Safety Shield Active • Please complete your profile and location')}
           </p>
         </div>
 
@@ -370,8 +427,12 @@ export default function DashboardPage() {
                   <ShieldCheck size={18} />
                 </div>
                 <div className="activity-content">
-                  <div className="activity-text">Primary contacts verified (Sunita Sharma & Priya Patel)</div>
-                  <div className="activity-time">Yesterday, 07:15 PM • Health Check Pass</div>
+                  <div className="activity-text">
+                    {contacts.length > 0 
+                      ? `Primary emergency contact verified: ${contacts[0]?.name} (${contacts[0]?.relation})`
+                      : 'No emergency contacts registered yet. Please add a guardian.'}
+                  </div>
+                  <div className="activity-time">Guardian Network Check</div>
                 </div>
               </div>
 

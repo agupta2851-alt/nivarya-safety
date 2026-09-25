@@ -66,13 +66,21 @@ export default function LoginPage() {
       setUserProfile(prev => ({
         ...prev,
         name: user.name,
-        email: user.email,
-        phone: user.phone || prev.phone,
-        bloodGroup: user.bloodGroup || prev.bloodGroup,
-        emergencyNotes: user.emergencyNotes || prev.emergencyNotes
+        email: user.email || '',
+        phone: user.phone || '',
+        city: user.city || '',
+        location: user.location || '',
+        bloodGroup: user.bloodGroup || '',
+        emergencyNotes: user.emergencyNotes || '',
+        safetyPin: user.safetyPin || '1234',
+        isProfileComplete: Boolean(user.isProfileComplete)
       }));
       showToast(`Welcome back, ${user.name}! Safety Guard active.`, 'safe');
-      setCurrentPage('dashboard');
+      if (!user.isProfileComplete) {
+        setCurrentPage('profile-setup');
+      } else {
+        setCurrentPage('dashboard');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setGeneralError(err.message || 'Login failed. Please check your credentials.');
@@ -93,7 +101,11 @@ export default function LoginPage() {
         phone: user.phone || prev.phone
       }));
       showToast('Signed in securely with Google.', 'safe');
-      setCurrentPage('dashboard');
+      if (!user.isProfileComplete) {
+        setCurrentPage('profile-setup');
+      } else {
+        setCurrentPage('dashboard');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setGeneralError(err.message || 'Google authentication failed.');
@@ -113,8 +125,12 @@ export default function LoginPage() {
         email: user.email,
         phone: user.phone
       }));
-      showToast('Welcome back, Ananya! Demo session active.', 'safe');
-      setCurrentPage('dashboard');
+      showToast(`Signed in as ${user.name}.`, 'safe');
+      if (!user.isProfileComplete) {
+        setCurrentPage('profile-setup');
+      } else {
+        setCurrentPage('dashboard');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setGeneralError(err.message || 'Demo login failed.');
@@ -218,16 +234,31 @@ export default function LoginPage() {
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '12px',
-            padding: '12px 14px',
+            padding: '14px',
             marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
             color: '#FCA5A5',
-            fontSize: '0.86rem'
+            fontSize: '0.88rem'
           }} role="alert">
-            <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
-            <span>{generalError}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertCircle size={18} color="#EF4444" style={{ flexShrink: 0 }} />
+              <span>{generalError}</span>
+            </div>
+            {generalError.includes('No account found') && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setCurrentPage('signup')}
+                style={{
+                  width: '100%',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  marginTop: '10px',
+                  padding: '8px 12px'
+                }}
+              >
+                Create an Account Now
+              </button>
+            )}
           </div>
         )}
 
@@ -458,11 +489,11 @@ export default function LoginPage() {
               borderColor: 'rgba(99, 102, 241, 0.25)',
               color: 'var(--primary-light)',
               fontSize: '0.82rem',
-              padding: '9px 12px'
+              padding: '10px 12px'
             }}
           >
             <Sparkles size={14} />
-            <span>{isDemoSubmitting ? 'Logging in Demo...' : '1-Click Demo Login (Ananya Sharma)'}</span>
+            <span>{isDemoSubmitting ? 'Authenticating Demo...' : '[DEMO] 1-Click Tester Login (Development Only)'}</span>
           </button>
         </div>
 
@@ -619,7 +650,7 @@ export default function LoginPage() {
                   <input 
                     type="email"
                     className="form-control"
-                    placeholder="e.g. ananya.s@example.com"
+                    placeholder="e.g. your.email@example.com"
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     required

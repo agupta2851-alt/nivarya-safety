@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export default function LandingPage() {
-  const { setCurrentPage, triggerSos, t } = useApp();
+  const { setCurrentPage, triggerSos, t, userProfile } = useApp();
 
   const features = [
     {
@@ -155,7 +155,7 @@ export default function LandingPage() {
                   <span className="demo-banner-dot"></span>
                   <span>Safety Guard: ACTIVE</span>
                 </div>
-                <span className="badge badge-primary">Pune Center</span>
+                <span className="badge badge-primary">{userProfile?.city ? `${userProfile.city} Grid` : 'Active Safety Grid'}</span>
               </div>
 
               <div className="device-sos-area">

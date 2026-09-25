@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { useApp } from '../context/AppContext';
-import { extendedMapHotspots, safetyLayersConfig } from '../data/initialData';
+import { getHotspotsForCoordinates, safetyLayersConfig } from '../data/initialData';
 import { 
   Map as MapIcon, 
   Filter, 
@@ -17,11 +17,12 @@ import {
   Building2,
   HeartPulse,
   Users,
-  Flag
+  Flag,
+  MapPin
 } from 'lucide-react';
 
 export default function SafetyMapPage() {
-  const { showToast, currentCoordinates, t } = useApp();
+  const { showToast, currentCoordinates, requestGpsLocation, locationState, setIsLocationConsentModalOpen, t } = useApp();
   
   // Track enabled layers (all 8 enabled by default)
   const [activeLayers, setActiveLayers] = useState({
@@ -51,14 +52,35 @@ export default function SafetyMapPage() {
     setActiveLayers(updated);
   };
 
+  const allHotspots = currentCoordinates?.lat != null
+    ? [
+        {
+          id: 'user-marker',
+          type: 'user',
+          name: 'Your Current Location',
+          lat: currentCoordinates.lat,
+          lng: currentCoordinates.lng,
+          category: 'user',
+          layer: 'user',
+          details: `Real GPS Position (accuracy ±${currentCoordinates.accuracy || 10}m)`
+        },
+        ...getHotspotsForCoordinates(currentCoordinates)
+      ]
+    : [];
+
   // Initialize and update Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
+      const defaultCenter = currentCoordinates?.lat != null 
+        ? [currentCoordinates.lat, currentCoordinates.lng] 
+        : [20.5937, 78.9629]; // Geographic center fallback when unlocated
+      const defaultZoom = currentCoordinates?.lat != null ? 15 : 5;
+
       const map = L.map(mapContainerRef.current, {
-        center: [currentCoordinates.lat || 18.5204, currentCoordinates.lng || 73.8567],
-        zoom: 14,
+        center: defaultCenter,
+        zoom: defaultZoom,
         zoomControl: true
       });
 
@@ -68,6 +90,8 @@ export default function SafetyMapPage() {
       }).addTo(map);
 
       mapInstanceRef.current = map;
+    } else if (currentCoordinates?.lat != null) {
+      mapInstanceRef.current.setView([currentCoordinates.lat, currentCoordinates.lng], 15);
     }
 
     const map = mapInstanceRef.current;
@@ -77,7 +101,7 @@ export default function SafetyMapPage() {
     markersRef.current = [];
 
     // Filter points based on activeLayers
-    const filtered = extendedMapHotspots.filter(spot => {
+    const filtered = allHotspots.filter(spot => {
       if (spot.type === 'user') return true;
       const categoryKey = spot.layer || spot.category;
       if (categoryKey === 'safezone' || categoryKey === 'safezones') return activeLayers.safezones;
@@ -176,10 +200,20 @@ export default function SafetyMapPage() {
     };
   }, []);
 
-  const handleCenterOnUser = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([currentCoordinates.lat || 18.5204, currentCoordinates.lng || 73.8567], 15);
-      showToast('Centered on simulated user position', 'safe');
+  const handleCenterOnUser = async () => {
+    if (currentCoordinates.lat != null && mapInstanceRef.current) {
+      mapInstanceRef.current.setView([currentCoordinates.lat, currentCoordinates.lng], 15);
+      showToast('Centered on your real device GPS', 'safe');
+    } else {
+      try {
+        const res = await requestGpsLocation();
+        if (res?.coords && mapInstanceRef.current) {
+          mapInstanceRef.current.setView([res.coords.lat, res.coords.lng], 15);
+          showToast('Acquired and centered on real GPS coordinates', 'safe');
+        }
+      } catch (err) {
+        setIsLocationConsentModalOpen(true);
+      }
     }
   };
 
@@ -295,6 +329,39 @@ export default function SafetyMapPage() {
         </div>
       </div>
 
+      {/* Location Status Strip */}
+      {currentCoordinates?.lat == null && (
+        <div style={{
+          background: 'rgba(99, 102, 241, 0.1)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <MapPin size={18} color="var(--primary-light)" />
+            <span style={{ fontSize: '0.88rem', color: '#E2E8F0' }}>
+              {locationState?.mode === 'manual' && locationState?.city 
+                ? `Manual Location: ${locationState.city}${locationState.address ? ` (${locationState.address})` : ''} • Enable GPS to populate live radar spots`
+                : 'GPS position not yet active. Enable device GPS to scan live safety points around your current position.'}
+            </span>
+          </div>
+          <button 
+            className="btn btn-safe btn-sm"
+            onClick={handleCenterOnUser}
+            style={{ fontWeight: 700 }}
+          >
+            <Crosshair size={14} />
+            <span>Enable Real GPS</span>
+          </button>
+        </div>
+      )}
+
       {/* Map Action Strip */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -305,7 +372,7 @@ export default function SafetyMapPage() {
           onClick={handleCenterOnUser}
         >
           <Crosshair size={15} />
-          <span>Locate Me (Simulated GPS)</span>
+          <span>Locate Me (Real Device GPS)</span>
         </button>
       </div>
 
@@ -320,63 +387,86 @@ export default function SafetyMapPage() {
           Verified Points of Interest & Hazard Radar
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
-          {extendedMapHotspots.filter(s => s.type !== 'user').map(spot => (
-            <div 
-              key={spot.id} 
-              style={{
-                background: 'rgba(7, 11, 20, 0.6)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '12px',
-                padding: '14px',
-                cursor: 'pointer',
-                transition: 'border-color 0.2s'
-              }}
-              onClick={() => {
-                if (mapInstanceRef.current) {
-                  mapInstanceRef.current.setView([spot.lat, spot.lng], 16);
-                }
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                <span style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  color: 'var(--primary-light)'
-                }}>
-                  {spot.layer || spot.category}
-                </span>
-                {spot.severity && (
-                  <span style={{ fontSize: '0.72rem', color: '#F87171', fontWeight: 700 }}>
-                    Severity: {spot.severity}
+        {allHotspots.filter(s => s.type !== 'user').length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '36px 20px',
+            background: 'rgba(7, 11, 20, 0.4)',
+            borderRadius: '12px',
+            border: '1px dashed var(--border-subtle)',
+            color: 'var(--text-muted)'
+          }}>
+            <Compass size={36} color="var(--primary-light)" style={{ margin: '0 auto 12px', opacity: 0.6 }} />
+            <div style={{ color: '#FFFFFF', fontWeight: 600, fontSize: '0.98rem', marginBottom: '6px' }}>
+              No GPS Radar Points Active
+            </div>
+            <p style={{ margin: '0 auto 16px', fontSize: '0.85rem', maxWidth: '420px', color: '#94A3B8' }}>
+              Radar spots (police desks, streetlights, safe zones) are dynamically computed around your live coordinates to prevent false location simulation.
+            </p>
+            <button className="btn btn-primary btn-sm" onClick={handleCenterOnUser}>
+              <Crosshair size={14} />
+              <span>Acquire Real Device GPS</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+            {allHotspots.filter(s => s.type !== 'user').map(spot => (
+              <div 
+                key={spot.id} 
+                style={{
+                  background: 'rgba(7, 11, 20, 0.6)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.2s'
+                }}
+                onClick={() => {
+                  if (mapInstanceRef.current) {
+                    mapInstanceRef.current.setView([spot.lat, spot.lng], 16);
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: 'var(--primary-light)'
+                  }}>
+                    {spot.layer || spot.category}
                   </span>
+                  {spot.severity && (
+                    <span style={{ fontSize: '0.72rem', color: '#F87171', fontWeight: 700 }}>
+                      Severity: {spot.severity}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '0.95rem', marginBottom: '4px' }}>
+                  {spot.name}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94A3B8', marginBottom: '10px' }}>
+                  {spot.details}
+                </div>
+
+                {spot.phone && (
+                  <a 
+                    href={`tel:${spot.phone}`} 
+                    className="btn btn-secondary btn-sm"
+                    style={{ textDecoration: 'none', padding: '4px 10px', fontSize: '0.78rem' }}
+                  >
+                    <PhoneCall size={12} />
+                    <span>Call {spot.phone}</span>
+                  </a>
                 )}
               </div>
-
-              <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '0.95rem', marginBottom: '4px' }}>
-                {spot.name}
-              </div>
-              <div style={{ fontSize: '0.8rem', color: '#94A3B8', marginBottom: '10px' }}>
-                {spot.details}
-              </div>
-
-              {spot.phone && (
-                <a 
-                  href={`tel:${spot.phone}`} 
-                  className="btn btn-secondary btn-sm"
-                  style={{ textDecoration: 'none', padding: '4px 10px', fontSize: '0.78rem' }}
-                >
-                  <PhoneCall size={12} />
-                  <span>Call {spot.phone}</span>
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

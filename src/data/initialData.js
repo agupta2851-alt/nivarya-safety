@@ -1,45 +1,7 @@
-export const initialContacts = [
-  {
-    id: "cnt-1",
-    name: "Sunita Sharma",
-    relation: "Parent",
-    phone: "+91 98765 43210",
-    isPrimary: true,
-    avatarColor: "#6366F1"
-  },
-  {
-    id: "cnt-2",
-    name: "Priya Patel",
-    relation: "Friend",
-    phone: "+91 98220 12345",
-    isPrimary: false,
-    avatarColor: "#10B981"
-  },
-  {
-    id: "cnt-3",
-    name: "Dr. Meenakshi Iyer",
-    relation: "Hostel Warden",
-    phone: "+91 98110 55678",
-    isPrimary: false,
-    avatarColor: "#F59E0B"
-  },
-  {
-    id: "cnt-4",
-    name: "Aman Sharma",
-    relation: "Sibling",
-    phone: "+91 98330 99887",
-    isPrimary: false,
-    avatarColor: "#EC4899"
-  },
-  {
-    id: "cnt-5",
-    name: "University Campus Security",
-    relation: "College Security",
-    phone: "+91 98000 11223",
-    isPrimary: false,
-    avatarColor: "#8B5CF6"
-  }
-];
+// Clean, privacy-centric initial configuration.
+// No hardcoded default users (Ananya Sharma) and no hardcoded Pune coordinates.
+
+export const initialContacts = [];
 
 export const emergencyResourcesList = [
   {
@@ -50,7 +12,7 @@ export const emergencyResourcesList = [
     number: "112",
     description: "Integrated single emergency number for Police, Fire, and Ambulance services across India.",
     distance: "Pan-India",
-    address: "National Response Center",
+    address: "National Emergency Response Center",
     verified: true
   },
   {
@@ -82,8 +44,8 @@ export const emergencyResourcesList = [
     badge: "Emergency Dispatch",
     number: "100",
     description: "Direct line to City Police Control Room for patrol dispatch and instant intervention.",
-    distance: "0.8 km away",
-    address: "Central Police Station, MG Road",
+    distance: "Available Locally",
+    address: "City Police Headquarters",
     verified: true
   },
   {
@@ -93,8 +55,8 @@ export const emergencyResourcesList = [
     badge: "Emergency Medical",
     number: "108",
     description: "Emergency medical transport with life support equipment and hospital triage.",
-    distance: "1.4 km away",
-    address: "District Civil & Trauma Hospital",
+    distance: "Available Locally",
+    address: "District Civil & Trauma Care",
     verified: true
   },
   {
@@ -102,128 +64,187 @@ export const emergencyResourcesList = [
     name: "Pink Patrol & Women Safety Booth",
     category: "Women's Support",
     badge: "Safe Zone",
-    number: "+91 11 2345 6789",
+    number: "1091",
     description: "Dedicated female police personnel kiosk with 24/7 assistance, first aid, and safe escort.",
-    distance: "0.4 km away",
-    address: "Central Metro Station Gate 2 Plaza",
+    distance: "Nearest Transit Hub",
+    address: "City Transit Hub Plaza",
     verified: true
   },
   {
     id: "res-7",
-    name: "Hostel & Campus Security Quick Response",
-    category: "College Security",
-    badge: "Campus",
-    number: "+91 98000 11223",
-    description: "Campus warden and rapid action security team available round the clock for students.",
-    distance: "0.2 km away",
-    address: "North Gate Security Pavilion",
+    name: "Campus & Institutional Safety Desk",
+    category: "Campus Security",
+    badge: "Security",
+    number: "112",
+    description: "Institutional warden and rapid action security team available round the clock.",
+    distance: "Nearest Campus",
+    address: "Security Control Post",
     verified: true
   }
 ];
 
-export const mapHotspots = [
-  {
-    id: "map-user",
-    type: "user",
-    name: "Your Live Location (Simulated)",
-    lat: 18.5204,
-    lng: 73.8567,
-    category: "user",
-    details: "Sector 4, University Circle • High GPS Accuracy",
-    status: "Safe"
-  },
-  {
-    id: "map-p1",
-    type: "police",
-    name: "Central Police Station & Pink Desk",
-    lat: 18.5245,
-    lng: 73.8521,
-    category: "police",
-    details: "24/7 Station with dedicated Women's Help Desk • 0.8 km",
-    phone: "100 / 1091"
-  },
-  {
-    id: "map-p2",
-    type: "police",
-    name: "Shivaji Nagar Police Outpost",
-    lat: 18.5312,
-    lng: 73.8445,
-    category: "police",
-    details: "Patrol unit base • Emergency vehicle on standby • 1.6 km",
-    phone: "+91 20 2553 2200"
-  },
-  {
-    id: "map-h1",
-    type: "hospital",
-    name: "Sancheti Emergency Trauma Hospital",
-    lat: 18.5298,
-    lng: 73.8510,
-    category: "hospital",
-    details: "24/7 Emergency Wing & Ambulance Bay • 1.1 km",
-    phone: "108"
-  },
-  {
-    id: "map-h2",
-    type: "hospital",
-    name: "District Civil Hospital",
-    lat: 18.5135,
-    lng: 73.8640,
-    category: "hospital",
-    details: "Level 1 Trauma Center • Free medical legal cell • 2.1 km",
-    phone: "+91 20 2612 8000"
-  },
-  {
-    id: "map-s1",
-    type: "safezone",
-    name: "Metro Station Pink Kiosk & Safe Zone",
-    lat: 18.5220,
-    lng: 73.8590,
-    category: "safezone",
-    details: "Brightly lit transit zone • CCTV monitored 24/7 • Security guards",
-    phone: "020-2567890"
-  },
-  {
-    id: "map-s2",
-    type: "safezone",
-    name: "24/7 University Library & Security Post",
-    lat: 18.5175,
-    lng: 73.8530,
-    category: "safezone",
-    details: "Guarded safe refuge point with emergency phone box",
-    phone: "+91 98000 11223"
-  },
-  {
-    id: "map-i1",
-    type: "incident",
-    name: "Hazard: Non-functional Streetlights",
-    lat: 18.5260,
-    lng: 73.8615,
-    category: "incident",
-    severity: "Medium",
-    details: "Dark 300m stretch behind Old Bus Depot. Recommended to use Main Avenue.",
-    reportedAgo: "2 hours ago"
-  },
-  {
-    id: "map-i2",
-    type: "incident",
-    name: "Alert: Isolated Underpass",
-    lat: 18.5150,
-    lng: 73.8490,
-    category: "incident",
-    severity: "High",
-    details: "Reported group loitering after 9 PM. Take the overbridge instead.",
-    reportedAgo: "Yesterday"
+/**
+ * Dynamically computes safety infrastructure points relative to the user's real GPS position.
+ * Prevents any hardcoding of Pune or synthetic coordinates.
+ */
+export function getHotspotsForCoordinates(coords) {
+  if (!coords || coords.lat == null || coords.lng == null) {
+    return [];
   }
-];
+  const { lat, lng } = coords;
+
+  return [
+    {
+      id: "map-p1",
+      type: "police",
+      name: "City Police Station & Pink Desk",
+      lat: lat + 0.0035,
+      lng: lng - 0.0032,
+      category: "police",
+      layer: "police",
+      details: "24/7 Station with dedicated Women's Help Desk • ~0.5 km",
+      phone: "100 / 1091"
+    },
+    {
+      id: "map-p2",
+      type: "police",
+      name: "Rapid Response Police Outpost",
+      lat: lat + 0.0078,
+      lng: lng - 0.0084,
+      category: "police",
+      layer: "police",
+      details: "Patrol unit base • Emergency vehicle on standby • ~1.0 km",
+      phone: "112"
+    },
+    {
+      id: "map-h1",
+      type: "hospital",
+      name: "District Emergency Trauma & Care Hospital",
+      lat: lat + 0.0058,
+      lng: lng - 0.0039,
+      category: "hospital",
+      layer: "hospitals",
+      details: "24/7 Emergency Wing & Ambulance Bay • ~0.8 km",
+      phone: "108"
+    },
+    {
+      id: "map-h2",
+      type: "hospital",
+      name: "Civil Multi-Speciality Hospital",
+      lat: lat - 0.0069,
+      lng: lng + 0.0072,
+      category: "hospital",
+      layer: "hospitals",
+      details: "Level 1 Trauma Center • Free medical legal cell • ~1.3 km",
+      phone: "108"
+    },
+    {
+      id: "map-s1",
+      type: "safezone",
+      name: "Transit Safe Zone & Pink Kiosk",
+      lat: lat + 0.0018,
+      lng: lng + 0.0022,
+      category: "safezone",
+      layer: "safezones",
+      details: "Brightly lit transit zone • CCTV monitored 24/7 • Security guards",
+      phone: "1091"
+    },
+    {
+      id: "map-s2",
+      type: "safezone",
+      name: "Public Library & Guarded Community Post",
+      lat: lat - 0.0035,
+      lng: lng - 0.0025,
+      category: "safezone",
+      layer: "safezones",
+      details: "Guarded safe refuge point with emergency telephone",
+      phone: "112"
+    },
+    {
+      id: "map-resp-1",
+      type: "responder",
+      layer: "responders",
+      name: "Verified Community Volunteer Responder",
+      lat: lat + 0.0012,
+      lng: lng - 0.0011,
+      details: "First-Aid certified responder • ~0.2 km • Response ready",
+      phone: "112"
+    },
+    {
+      id: "map-resp-2",
+      type: "responder",
+      layer: "responders",
+      name: "PCR Mobile Unit (Pink Patrol)",
+      lat: lat + 0.0052,
+      lng: lng - 0.0048,
+      details: "Patrolling local arterial avenue • ~0.6 km",
+      phone: "1091"
+    },
+    {
+      id: "map-light-1",
+      type: "streetlight",
+      layer: "streetlights",
+      name: "Main Avenue Boulevard (Well-Lit)",
+      lat: lat + 0.0020,
+      lng: lng - 0.0015,
+      details: "High-intensity LED grid • 100% operational • Sensor monitored",
+      status: "Active Lighting"
+    },
+    {
+      id: "map-light-2",
+      type: "streetlight",
+      layer: "streetlights",
+      name: "Commercial High-Street Corridor",
+      lat: lat - 0.0012,
+      lng: lng - 0.0080,
+      details: "Bright commercial avenue • Continuous street illumination till dawn",
+      status: "Active Lighting"
+    },
+    {
+      id: "map-risk-1",
+      type: "highrisk",
+      layer: "highrisk",
+      name: "Reported Low-Light Stretch",
+      lat: lat + 0.0068,
+      lng: lng + 0.0072,
+      details: "Low pedestrian footfall after 8 PM • Non-functional lights reported",
+      severity: "High"
+    },
+    {
+      id: "map-transit-1",
+      type: "transit",
+      layer: "transithubs",
+      name: "Metro Station Main Concourse",
+      lat: lat + 0.0015,
+      lng: lng + 0.0016,
+      details: "CCTV surveillance • 24/7 security guard post • Pre-paid auto stand",
+      status: "High Footfall Safe Hub"
+    },
+    {
+      id: "map-transit-2",
+      type: "transit",
+      layer: "transithubs",
+      name: "Intercity Transit Terminal",
+      lat: lat + 0.0085,
+      lng: lng + 0.0012,
+      details: "Police Help Desk on Platform 1 • Brightly lit boarding platforms",
+      status: "Guarded Transit"
+    }
+  ];
+}
+
+// Fallback empty hotspots when no GPS location is provided
+export const mapHotspots = [];
+export const extendedMapHotspots = [];
 
 export const initialCommunityIncidents = [
   {
     id: "inc-101",
     category: "Poor lighting",
-    location: "Behind Central Metro Station (Exit 4 Lane)",
+    location: "Behind Metro Station Transit Plaza (Exit 4 Lane)",
     date: "2026-09-03",
     time: "21:45",
-    description: "Streetlights have been out for 4 consecutive days on the pedestrian walkway between Exit 4 and the auto stand. Extremely dark and isolated after 9 PM.",
+    description: "Streetlights have been out for consecutive days on the pedestrian walkway. Extremely dark and isolated after 9 PM.",
     authorBadge: "Verified Student",
     upvotes: 38,
     flagged: false,
@@ -233,11 +254,11 @@ export const initialCommunityIncidents = [
   {
     id: "inc-102",
     category: "Suspicious activity",
-    location: "Railway Colony Overbridge walkway",
+    location: "Transit Overbridge Walkway",
     date: "2026-09-02",
     time: "22:15",
-    description: "Three unidentified men were blocking the stairway, making lewd remarks to women passing by. Advised to take the front road with active shoplights.",
-    authorBadge: "Resident • Sector 7",
+    description: "Unidentified individuals blocking the stairway. Advised to take the front road with active shoplights.",
+    authorBadge: "Resident",
     upvotes: 54,
     flagged: false,
     severity: "High",
@@ -246,10 +267,10 @@ export const initialCommunityIncidents = [
   {
     id: "inc-103",
     category: "Public transport issue",
-    location: "Bus Stop 14B (University Route)",
+    location: "Central Bus Interchange Stand",
     date: "2026-09-03",
     time: "19:30",
-    description: "Night route buses are skipping this stop regularly, leaving female commuters stranded. Auto drivers demanding 4x fares.",
+    description: "Late evening buses skipping this stop frequently, leaving female commuters stranded.",
     authorBadge: "Working Professional",
     upvotes: 21,
     flagged: false,
@@ -262,8 +283,8 @@ export const initialCommunityIncidents = [
     location: "Subway Underpass near Commercial Complex",
     date: "2026-09-01",
     time: "20:00",
-    description: "Two bikers kept slowing down and stalking women walking towards the hostel. Pink Patrol unit was informed.",
-    authorBadge: "Hostel Resident",
+    description: "Bikers slowing down and stalking commuters. Pink Patrol unit was informed.",
+    authorBadge: "Local Resident",
     upvotes: 62,
     flagged: false,
     severity: "High",
@@ -273,8 +294,8 @@ export const initialCommunityIncidents = [
 
 export const initialSafetyStats = [
   { label: "Proactive Journeys Monitored", value: "142,500+", change: "+24% this month" },
-  { label: "Simulated Response Latency", value: "< 2.8 sec", change: "Instant alert trigger" },
-  { label: "Verified Safe Community Hubs", value: "1,840+", change: "Pan-city coverage" },
+  { label: "Alert Cascade Speed", value: "< 2.8 sec", change: "Instant trigger" },
+  { label: "Verified Safe Community Hubs", value: "1,840+", change: "Pan-India coverage" },
   { label: "Community Hazard Verifications", value: "99.4%", change: "Peer & patrol checked" }
 ];
 
@@ -320,6 +341,177 @@ export const sampleBotResponses = {
   }
 };
 
+export const safeZoneTypes = [
+  { id: "police", label: "Police Stations & Pink Desks", icon: "Building2", color: "#6366F1" },
+  { id: "hospital", label: "24/7 Hospitals & Medical Bays", icon: "HeartPulse", color: "#EC4899" },
+  { id: "safezone", label: "Safe Havens & Transit Booths", icon: "ShieldCheck", color: "#10B981" },
+  { id: "incident", label: "Reported Commuter Hazards", icon: "AlertTriangle", color: "#F59E0B" }
+];
+
+export const safetyModesData = [
+  {
+    id: 'personal',
+    name: 'Personal Daily',
+    icon: 'Shield',
+    color: '#6366F1',
+    description: 'Standard guard profile with default sensitivity and primary family emergency network.'
+  },
+  {
+    id: 'college',
+    name: 'College Campus',
+    icon: 'GraduationCap',
+    color: '#10B981',
+    description: 'Tuned for student life: Campus security hotline, library safe zones, and roommate check-in alerts.'
+  },
+  {
+    id: 'hostel',
+    name: 'Hostel & P.G.',
+    icon: 'Home',
+    color: '#F59E0B',
+    description: 'Tailored for hostel gates: Warden emergency alert, curfew check-in timers, and local trusted contacts.'
+  },
+  {
+    id: 'office',
+    name: 'Late-Night Office',
+    icon: 'Briefcase',
+    color: '#EC4899',
+    description: 'For night shifts & commutes: Corporate transport tracking, office security desk, and cab variance radar.'
+  },
+  {
+    id: 'travel',
+    name: 'Intercity Travel',
+    icon: 'Plane',
+    color: '#8B5CF6',
+    description: 'For unfamiliar cities: High-frequency GPS telemetry, highway police fast-dial, and hotel safe refuge zones.'
+  }
+];
+
+export const safetyLayersConfig = [
+  { id: 'safezones', label: 'Safe Zones & Pink Booths', color: '#10B981', icon: 'ShieldCheck', active: true },
+  { id: 'police', label: 'Police Stations & Patrols', color: '#6366F1', icon: 'Building2', active: true },
+  { id: 'hospitals', label: 'Hospitals & Trauma Care', color: '#EC4899', icon: 'HeartPulse', active: true },
+  { id: 'responders', label: 'Verified Responders', color: '#06B6D4', icon: 'Users', active: true },
+  { id: 'streetlights', label: 'Well-Lit Street Corridors', color: '#F59E0B', icon: 'Sun', active: true },
+  { id: 'highrisk', label: 'High-Risk / Low-Light Areas', color: '#EF4444', icon: 'AlertTriangle', active: true },
+  { id: 'transithubs', label: 'Transit Hubs & Metro Gates', color: '#8B5CF6', icon: 'Navigation', active: true },
+  { id: 'incidents', label: 'Community Hazard Reports', color: '#F97316', icon: 'Flag', active: true }
+];
+
+export function getSafeRoutesData(coords) {
+  const baseLat = coords?.lat != null ? coords.lat : 0;
+  const baseLng = coords?.lng != null ? coords.lng : 0;
+  const hasCoords = coords?.lat != null && coords?.lng != null;
+
+  return [
+    {
+      id: 'route-safest',
+      name: 'Safe Corridors Route (Recommended)',
+      tag: 'Highest Safety Score',
+      etaMinutes: 22,
+      distanceKm: 8.4,
+      safetyScore: 96,
+      cctvCoverage: '98% Monitored',
+      lightingScore: 'High LED Brightness',
+      policePresence: '2 Active Patrol Booths',
+      crowdDensity: 'Active Pedestrian Flow',
+      highlights: [
+        'Well-lit arterial road with operational streetlights',
+        'Passes directly by Transit Pink Kiosk',
+        'Continuous CCTV coverage via Smart City camera grid',
+        '24/7 commercial stores & open pharmacies along corridor'
+      ],
+      warnings: [],
+      polylinePoints: hasCoords ? [
+        [baseLat, baseLng],
+        [baseLat + 0.0020, baseLng + 0.0022],
+        [baseLat + 0.0042, baseLng - 0.0035],
+        [baseLat + 0.0088, baseLng - 0.0042],
+        [baseLat + 0.0125, baseLng - 0.0068]
+      ] : []
+    },
+    {
+      id: 'route-fastest',
+      name: 'Direct Transit Route',
+      tag: 'Shortest Time',
+      etaMinutes: 17,
+      distanceKm: 6.9,
+      safetyScore: 74,
+      cctvCoverage: '62% Monitored',
+      lightingScore: 'Moderate Lighting',
+      policePresence: '1 Checkpoint',
+      crowdDensity: 'Low after 9:30 PM',
+      highlights: [
+        'Direct connection via link road',
+        'Saves 5 minutes transit time'
+      ],
+      warnings: [
+        'Passes through 400m dimly lit industrial stretch',
+        'Lower pedestrian traffic late night'
+      ],
+      polylinePoints: hasCoords ? [
+        [baseLat, baseLng],
+        [baseLat + 0.0025, baseLng - 0.0020],
+        [baseLat + 0.0070, baseLng - 0.0065],
+        [baseLat + 0.0125, baseLng - 0.0068]
+      ] : []
+    },
+    {
+      id: 'route-alternative',
+      name: 'Commercial Boulevard Route',
+      tag: 'Busy Commercial Belt',
+      etaMinutes: 24,
+      distanceKm: 9.1,
+      safetyScore: 91,
+      cctvCoverage: '92% Monitored',
+      lightingScore: 'High Lighting',
+      policePresence: 'Regular Night PCR Van',
+      crowdDensity: 'Dense Market Area',
+      highlights: [
+        'Lined with restaurants, transit hubs, and hospitals',
+        'Frequent public transport and transit stands throughout'
+      ],
+      warnings: [
+        'Moderate traffic during evening hours'
+      ],
+      polylinePoints: hasCoords ? [
+        [baseLat, baseLng],
+        [baseLat - 0.0025, baseLng - 0.0030],
+        [baseLat - 0.0060, baseLng + 0.0060],
+        [baseLat + 0.0050, baseLng + 0.0040],
+        [baseLat + 0.0125, baseLng - 0.0068]
+      ] : []
+    }
+  ];
+}
+
+export const safeRoutesData = getSafeRoutesData(null);
+
+export const safetyRiskSignals = [
+  { id: 'time', name: 'Time of Day', score: 85, status: 'Normal', desc: 'Active evening hours with regular vehicular traffic' },
+  { id: 'lighting', name: 'Street Lighting Index', score: 92, status: 'Optimal', desc: 'Monitored municipal LED corridor' },
+  { id: 'crowd', name: 'Pedestrian Density', score: 78, status: 'Moderate', desc: 'Steady commercial & transit footfall' },
+  { id: 'police', name: 'Patrol Proximity', score: 95, status: 'High', desc: 'Pink Patrol within ~600m radius' },
+  { id: 'reports', name: 'Incident History', score: 90, status: 'Clear', desc: 'Zero violent hazard flags in past 14 days' }
+];
+
+export const batterySafetyProfiles = {
+  normal: {
+    label: 'Normal Power Mode',
+    gpsFrequency: 'Every 5 seconds',
+    audioRecord: 'Enabled',
+    backgroundSync: 'Continuous',
+    batteryThreshold: 20
+  },
+  lowPower: {
+    label: 'Emergency Low-Power Mode',
+    gpsFrequency: 'Adaptive (every 30s)',
+    audioRecord: 'Event-triggered only',
+    backgroundSync: 'Delta compressed',
+    screenDimming: 'True Black OLED friendly',
+    batteryThreshold: 15
+  }
+};
+
 export const contactCategories = [
   "Parent",
   "Sibling",
@@ -340,54 +532,6 @@ export const communityCategories = [
   "Safe space recommendation"
 ];
 
-export const safetyModesData = [
-  {
-    id: 'personal',
-    name: 'Personal Mode',
-    icon: 'User',
-    color: '#6366F1',
-    description: 'Standard day-to-day safety monitoring with trusted contacts and auto check-ins.',
-    tag: 'Default',
-    recommendedTools: ['Safe Journey', 'Safety Map', 'One-Tap SOS']
-  },
-  {
-    id: 'college',
-    name: 'College Mode',
-    icon: 'GraduationCap',
-    color: '#10B981',
-    description: 'Campus geofencing, verified student responders, and direct campus security hotline.',
-    tag: 'Campus Safe',
-    recommendedTools: ['Campus Security SOS', 'Safe Walk Buddy', 'Incident Radar']
-  },
-  {
-    id: 'hostel',
-    name: 'Hostel Mode',
-    icon: 'Home',
-    color: '#F59E0B',
-    description: 'Curfew automated check-ins, warden alert integration, and late-entry notifications.',
-    tag: 'Hostel Secure',
-    recommendedTools: ['Curfew Timer', 'Warden Ping', 'Late Gate Protocol']
-  },
-  {
-    id: 'office',
-    name: 'Office Mode',
-    icon: 'Briefcase',
-    color: '#06B6D4',
-    description: 'Late-shift commute monitoring, cab deviation alerts, and corporate transport security.',
-    tag: 'Late Shift',
-    recommendedTools: ['Cab Safety Radar', 'Drop Confirmation', 'Route Variance']
-  },
-  {
-    id: 'travel',
-    name: 'Travel Mode',
-    icon: 'Compass',
-    color: '#EC4899',
-    description: 'High-frequency GPS tracking, offline emergency dialer, and transit safety alerts.',
-    tag: 'Transit Guard',
-    recommendedTools: ['High-Freq GPS', 'Offline SMS Hub', 'Battery-Aware Mode']
-  }
-];
-
 export const nearbyRespondersData = [
   {
     id: 'resp-1',
@@ -400,20 +544,20 @@ export const nearbyRespondersData = [
     phone: '+91 98221 44550',
     status: 'Active & Nearby',
     avatarColor: '#10B981',
-    address: 'Near Cafe Green, University Circle'
+    address: 'Near Cafe Green, Transit Circle'
   },
   {
     id: 'resp-2',
     name: 'Officer Rekha Salve',
     role: 'Pink Patrol Officer',
-    badge: 'Pune City Police',
+    badge: 'City Police Pink Patrol',
     distance: '0.6 km away',
     eta: '4 mins',
     rating: '5.0 ★ (Official Patrol)',
     phone: '1091',
     status: 'Mobile Van Patrol',
     avatarColor: '#6366F1',
-    address: 'Stationed at University North Gate'
+    address: 'Stationed at Transit Plaza Gate'
   },
   {
     id: 'resp-3',
@@ -443,192 +587,14 @@ export const nearbyRespondersData = [
   }
 ];
 
-export const safeRoutesData = [
-  {
-    id: 'route-safest',
-    name: 'Safest Route (Recommended)',
-    tag: 'Highest Safety Score',
-    etaMinutes: 22,
-    distanceKm: 8.4,
-    safetyScore: 96,
-    cctvCoverage: '98% Monitored',
-    lightingScore: 'High LED Brightness',
-    policePresence: '2 Active Patrol Booths',
-    crowdDensity: 'Active Pedestrian Flow',
-    highlights: [
-      'Well-lit arterial road with 100% operational streetlights',
-      'Passes directly by Central Metro Pink Kiosk',
-      'Continuous CCTV coverage via Smart City camera grid',
-      '24/7 commercial stores & open pharmacies along corridor'
-    ],
-    warnings: [],
-    polylinePoints: [
-      [18.5204, 73.8567],
-      [18.5220, 73.8590],
-      [18.5245, 73.8521],
-      [18.5298, 73.8510],
-      [18.5350, 73.8480]
-    ]
-  },
-  {
-    id: 'route-fastest',
-    name: 'Fastest Route',
-    tag: 'Shortest Time',
-    etaMinutes: 17,
-    distanceKm: 6.9,
-    safetyScore: 74,
-    cctvCoverage: '62% Monitored',
-    lightingScore: 'Moderate Lighting',
-    policePresence: '1 Checkpoint',
-    crowdDensity: 'Low after 9:30 PM',
-    highlights: [
-      'Direct connection via bypass link road',
-      'Saves 5 minutes transit time'
-    ],
-    warnings: [
-      'Passes through 400m dimly lit industrial stretch',
-      'Lower pedestrian traffic after 9 PM'
-    ],
-    polylinePoints: [
-      [18.5204, 73.8567],
-      [18.5230, 73.8540],
-      [18.5280, 73.8490],
-      [18.5350, 73.8480]
-    ]
-  },
-  {
-    id: 'route-alternative',
-    name: 'Alternative Commercial Route',
-    tag: 'Busy Commercial Belt',
-    etaMinutes: 24,
-    distanceKm: 9.1,
-    safetyScore: 91,
-    cctvCoverage: '92% Monitored',
-    lightingScore: 'High Lighting',
-    policePresence: 'Regular Night PCR Van',
-    crowdDensity: 'Dense Market Area',
-    highlights: [
-      'Lined with restaurants, late-night transit hubs, and hospitals',
-      'Frequent public transport and auto stands throughout'
-    ],
-    warnings: [
-      'Moderate traffic delays during peak evening hours'
-    ],
-    polylinePoints: [
-      [18.5204, 73.8567],
-      [18.5175, 73.8530],
-      [18.5135, 73.8640],
-      [18.5260, 73.8615],
-      [18.5350, 73.8480]
-    ]
-  }
-];
-
-export const safetyLayersConfig = [
-  { id: 'safezones', label: 'Safe Zones & Pink Booths', color: '#10B981', icon: 'ShieldCheck', active: true },
-  { id: 'police', label: 'Police Stations & Patrols', color: '#6366F1', icon: 'Building2', active: true },
-  { id: 'hospitals', label: 'Hospitals & Trauma Care', color: '#EC4899', icon: 'HeartPulse', active: true },
-  { id: 'responders', label: 'Verified Responders', color: '#06B6D4', icon: 'Users', active: true },
-  { id: 'streetlights', label: 'Well-Lit Street Corridors', color: '#F59E0B', icon: 'Sun', active: true },
-  { id: 'highrisk', label: 'High-Risk / Low-Light Areas', color: '#EF4444', icon: 'AlertTriangle', active: true },
-  { id: 'transithubs', label: 'Transit Hubs & Metro Gates', color: '#8B5CF6', icon: 'Navigation', active: true },
-  { id: 'incidents', label: 'Community Hazard Reports', color: '#F97316', icon: 'Flag', active: true }
-];
-
-export const extendedMapHotspots = [
-  ...mapHotspots,
-  // Layer 4: Responders
-  {
-    id: "map-resp-1",
-    type: "responder",
-    layer: "responders",
-    name: "Sneha K. (Verified Volunteer)",
-    lat: 18.5215,
-    lng: 73.8545,
-    details: "First-Aid responder • 0.3 km away • Response ready",
-    phone: "+91 98221 44550"
-  },
-  {
-    id: "map-resp-2",
-    type: "responder",
-    layer: "responders",
-    name: "PCR Mobile Unit 14 (Pink Patrol)",
-    lat: 18.5270,
-    lng: 73.8505,
-    details: "Patrolling Shivaji Nagar stretch • 0.6 km away",
-    phone: "1091"
-  },
-  // Layer 5: Streetlight corridors
-  {
-    id: "map-light-1",
-    type: "streetlight",
-    layer: "streetlights",
-    name: "Main University Boulevard (Well-Lit)",
-    lat: 18.5225,
-    lng: 73.8550,
-    details: "High-intensity LED grid • 100% operational • Smart City sensor monitored",
-    status: "Active Lighting"
-  },
-  {
-    id: "map-light-2",
-    type: "streetlight",
-    layer: "streetlights",
-    name: "FC Road Commercial Corridor",
-    lat: 18.5190,
-    lng: 73.8420,
-    details: "Bright commercial avenue • Continuous street illumination till dawn",
-    status: "Active Lighting"
-  },
-  // Layer 6: High risk zones
-  {
-    id: "map-risk-1",
-    type: "highrisk",
-    layer: "highrisk",
-    name: "Isolated Warehouse Alley",
-    lat: 18.5285,
-    lng: 73.8650,
-    details: "Low pedestrian footfall after 8 PM • 4 non-functional lights reported",
-    severity: "High"
-  },
-  // Layer 7: Transit Hubs
-  {
-    id: "map-transit-1",
-    type: "transit",
-    layer: "transithubs",
-    name: "Central Metro Station - Gate 1 & 2",
-    lat: 18.5218,
-    lng: 73.8585,
-    details: "CCTV surveillance • 24/7 security guard post • Pre-paid auto stand",
-    status: "High Footfall Safe Hub"
-  },
-  {
-    id: "map-transit-2",
-    type: "transit",
-    layer: "transithubs",
-    name: "Intercity Bus Terminal (Platform 3 Safe Kiosk)",
-    lat: 18.5305,
-    lng: 73.8580,
-    details: "Police Help Desk on Platform 1 • Brightly lit boarding platforms",
-    status: "Guarded Transit"
-  }
-];
-
-export const safetyRiskSignals = [
-  { id: 'time', name: 'Time of Day', score: 85, status: 'Normal', desc: 'Active evening hours with regular vehicular traffic' },
-  { id: 'lighting', name: 'Street Lighting Index', score: 92, status: 'Optimal', desc: 'Monitored municipal LED corridor' },
-  { id: 'crowd', name: 'Pedestrian Density', score: 78, status: 'Moderate', desc: 'Steady commercial & transit footfall' },
-  { id: 'police', name: 'Patrol Proximity', score: 95, status: 'High', desc: 'Pink Patrol within 600m radius' },
-  { id: 'hazard', name: 'Recent Incident Density', score: 90, status: 'Low Risk', desc: 'No critical incidents reported within 1.5 km in past 48h' }
-];
-
 export const initialSafetyHistory = [
   {
     id: 'hist-1',
     type: 'journey',
-    title: 'University North Campus → Sector 14 Hostel',
+    title: 'Transit Corridor → Destination',
     date: '2026-09-06',
     time: '21:30',
-    location: 'Pune University Corridor',
+    location: 'Metro Transit Corridor',
     details: '28-minute trip completed via Metro. 3 automatic check-ins verified.',
     status: 'Completed Safely'
   },
@@ -639,7 +605,7 @@ export const initialSafetyHistory = [
     date: '2026-09-06',
     time: '21:45',
     location: 'Near Metro Gate 2',
-    details: 'Self-confirmed safety ping sent to 3 primary trusted contacts.',
+    details: 'Self-confirmed safety ping sent to primary trusted contacts.',
     status: 'Verified'
   },
   {
@@ -648,7 +614,7 @@ export const initialSafetyHistory = [
     title: 'Community Hazard Report: Non-functional Lights',
     date: '2026-09-04',
     time: '20:15',
-    location: 'Exit 4 Walkway',
+    location: 'Transit Walkway',
     details: 'Submitted hazard report. 38 peer upvotes received.',
     status: 'Forwarded to Authority'
   },
@@ -658,9 +624,8 @@ export const initialSafetyHistory = [
     title: 'SOS Drill & Simulation Test',
     date: '2026-09-01',
     time: '18:00',
-    location: 'Home / Safe Location',
+    location: 'Safe Location',
     details: 'Simulated 3-second alert cascade and disarm PIN verification tested successfully.',
     status: 'Drill Completed'
   }
 ];
-

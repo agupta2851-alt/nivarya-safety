@@ -26,7 +26,7 @@ function getInitialRoute() {
     }
     const cleanPath = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
     const validPages = [
-      'login', 'signup',
+      'login', 'signup', 'profile-setup',
       'dashboard', 'journey', 'sos', 'contacts', 'map', 'report',
       'community', 'safebot', 'resources', 'profile', 'about',
       'routes', 'cab', 'intel', 'voice-gesture', 'evidence',
@@ -126,44 +126,104 @@ export function AppProvider({ children }) {
 
   // User Profile & Settings
   const [userProfile, setUserProfile] = useState(() => {
-    const saved = localStorage.getItem('nivarya_profile');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
+        if (sessionUserRaw) {
+          const u = JSON.parse(sessionUserRaw);
+          if (u && u.name) {
+            return {
+              name: u.name || '',
+              role: u.role || 'Verified Member',
+              phone: u.phone || '',
+              email: u.email || '',
+              age: u.age || '',
+              city: u.city || '',
+              location: u.location || '',
+              bloodGroup: u.bloodGroup || '',
+              emergencyNotes: u.emergencyNotes || '',
+              safetyPin: u.safetyPin || '1234',
+              sosDelay: 3,
+              autoAudioRecord: true,
+              highAccuracyGps: true,
+              isProfileComplete: Boolean(u.isProfileComplete)
+            };
+          }
+        }
+        const saved = localStorage.getItem('nivarya_profile');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.name) {
+            return parsed;
+          }
+        }
+      } catch (e) { /* ignore */ }
     }
     return {
-      name: 'Ananya Sharma',
-      role: 'University Student & Part-time Associate',
-      phone: '+91 98765 11223',
-      email: 'ananya.s@example.com',
-      bloodGroup: 'O+ Positive',
-      emergencyNotes: 'Allergic to Penicillin. Carries asthma inhaler.',
+      name: '',
+      role: 'Verified Member',
+      phone: '',
+      email: '',
+      age: '',
+      city: '',
+      location: '',
+      bloodGroup: '',
+      emergencyNotes: '',
       safetyPin: '1234',
       sosDelay: 3,
       autoAudioRecord: true,
-      highAccuracyGps: true
+      highAccuracyGps: true,
+      isProfileComplete: false
     };
   });
 
   useEffect(() => {
-    localStorage.setItem('nivarya_profile', JSON.stringify(userProfile));
+    if (userProfile.name) {
+      localStorage.setItem('nivarya_profile', JSON.stringify(userProfile));
+    }
   }, [userProfile]);
 
   // Trusted Contacts
   const [contacts, setContacts] = useState(() => {
-    const saved = localStorage.getItem('nivarya_contacts');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
+        if (sessionUserRaw) {
+          const u = JSON.parse(sessionUserRaw);
+          if (Array.isArray(u.contacts)) return u.contacts;
+        }
+        const saved = localStorage.getItem('nivarya_contacts');
+        if (saved) return JSON.parse(saved);
+      } catch (e) { /* ignore */ }
     }
     return initialContacts;
   });
 
   useEffect(() => {
     localStorage.setItem('nivarya_contacts', JSON.stringify(contacts));
+    // Persist to user record if authenticated
+    try {
+      const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
+      if (sessionUserRaw) {
+        const u = JSON.parse(sessionUserRaw);
+        if (u && u.id) {
+          const usersRaw = localStorage.getItem('nivarya_auth_users');
+          if (usersRaw) {
+            const users = JSON.parse(usersRaw);
+            const idx = users.findIndex(usr => usr.id === u.id);
+            if (idx !== -1) {
+              users[idx].contacts = contacts;
+              localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
+            }
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
   }, [contacts]);
 
   // Selected Contacts for SOS and Journey
   const [selectedContactsForSos, setSelectedContactsForSos] = useState(() => {
-    return initialContacts.map(c => c.id);
+    return contacts.map(c => c.id);
   });
 
   const toggleContactSosSelection = (id) => {
@@ -173,7 +233,7 @@ export function AppProvider({ children }) {
   };
 
   const [selectedContactsForJourney, setSelectedContactsForJourney] = useState(() => {
-    return initialContacts.filter(c => c.isPrimary || c.relation === 'Parent').map(c => c.id);
+    return contacts.filter(c => c.isPrimary || c.relation === 'Parent').map(c => c.id);
   });
 
   const toggleContactJourneySelection = (id) => {
@@ -206,19 +266,272 @@ export function AppProvider({ children }) {
     showToast('Contact removed', 'info');
   };
 
-  // Live Location & Sharing
-  const [currentCoordinates, setCurrentCoordinates] = useState({
-    lat: 18.5204,
-    lng: 73.8567,
-    address: 'Near University North Circle, Sector 4, Pune',
-    accuracy: 'High Accuracy (±3m)',
-    lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Real-Time Location & Telemetry State
+  const [locationState, setLocationState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
+        if (sessionUserRaw) {
+          const u = JSON.parse(sessionUserRaw);
+          if (u.locationState) return u.locationState;
+          if (u.city || u.location) {
+            return {
+              coords: null,
+              city: u.city || '',
+              address: u.location || '',
+              status: 'manual',
+              statusMessage: `Manual: ${u.city || u.location}`,
+              source: 'manual',
+              lastUpdated: null
+            };
+          }
+        }
+        const saved = localStorage.getItem('nivarya_location_state');
+        if (saved) return JSON.parse(saved);
+      } catch (e) { /* ignore */ }
+    }
+    return {
+      coords: null,
+      city: '',
+      address: '',
+      status: 'idle',
+      statusMessage: 'Location not set',
+      source: null,
+      lastUpdated: null
+    };
   });
+
+  // Cross-tab and auth-event synchronization
+  useEffect(() => {
+    const handleAuthSync = () => {
+      try {
+        const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
+        if (sessionUserRaw) {
+          const u = JSON.parse(sessionUserRaw);
+          setUserProfile(prev => ({
+            ...prev,
+            name: u.name || '',
+            role: u.role || 'Verified Member',
+            phone: u.phone || '',
+            email: u.email || '',
+            age: u.age || '',
+            city: u.city || '',
+            location: u.location || '',
+            bloodGroup: u.bloodGroup || '',
+            emergencyNotes: u.emergencyNotes || '',
+            safetyPin: u.safetyPin || '1234',
+            isProfileComplete: Boolean(u.isProfileComplete)
+          }));
+          if (Array.isArray(u.contacts)) {
+            setContacts(u.contacts);
+          }
+          if (u.locationState) {
+            setLocationState(u.locationState);
+          }
+        } else {
+          // Logged out: reset to clean state
+          setUserProfile({
+            name: '',
+            role: 'Verified Member',
+            phone: '',
+            email: '',
+            age: '',
+            city: '',
+            location: '',
+            bloodGroup: '',
+            emergencyNotes: '',
+            safetyPin: '1234',
+            sosDelay: 3,
+            autoAudioRecord: true,
+            highAccuracyGps: true,
+            isProfileComplete: false
+          });
+          setContacts([]);
+          setLocationState({
+            coords: null,
+            city: '',
+            address: '',
+            status: 'idle',
+            statusMessage: 'Location not set',
+            source: null,
+            lastUpdated: null
+          });
+          localStorage.removeItem('nivarya_profile');
+          localStorage.removeItem('nivarya_contacts');
+          localStorage.removeItem('nivarya_location_state');
+        }
+      } catch (err) {
+        console.error('Error syncing auth state in AppContext', err);
+      }
+    };
+
+    window.addEventListener('storage', handleAuthSync);
+    return () => window.removeEventListener('storage', handleAuthSync);
+  }, []);
+
+  const [isLocationConsentModalOpen, setIsLocationConsentModalOpen] = useState(false);
+
+  // Request browser Geolocation with explicit user permission
+  const requestGpsLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !navigator.geolocation) {
+        const errState = {
+          coords: null,
+          city: locationState.city,
+          address: locationState.address,
+          status: 'unavailable',
+          statusMessage: 'Geolocation not supported by device',
+          source: null,
+          lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setLocationState(errState);
+        localStorage.setItem('nivarya_location_state', JSON.stringify(errState));
+        return reject(new Error('Geolocation not supported by this browser.'));
+      }
+
+      setLocationState(prev => ({ ...prev, status: 'requesting', statusMessage: 'Requesting device GPS...' }));
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newCoords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy || 10)
+          };
+          const newState = {
+            coords: newCoords,
+            city: locationState.city,
+            address: locationState.address || 'Real-time GPS Location',
+            status: 'granted',
+            statusMessage: `GPS Active (±${newCoords.accuracy}m)`,
+            source: 'gps',
+            lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setLocationState(newState);
+          localStorage.setItem('nivarya_location_state', JSON.stringify(newState));
+          // Persist to user record
+          try {
+            const sessionRaw = localStorage.getItem('nivarya_auth_session');
+            if (sessionRaw) {
+              const u = JSON.parse(sessionRaw);
+              if (u && u.id) {
+                const usersRaw = localStorage.getItem('nivarya_auth_users');
+                if (usersRaw) {
+                  const users = JSON.parse(usersRaw);
+                  const idx = users.findIndex(usr => usr.id === u.id);
+                  if (idx !== -1) {
+                    users[idx].locationState = newState;
+                    localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
+                  }
+                }
+              }
+            }
+          } catch (e) { /* ignore */ }
+          resolve(newState);
+        },
+        (err) => {
+          const isDenied = err.code === 1;
+          const newState = {
+            coords: null,
+            city: locationState.city,
+            address: locationState.address,
+            status: isDenied ? 'denied' : 'unavailable',
+            statusMessage: isDenied ? 'Location permission denied' : 'Location unavailable',
+            source: locationState.source === 'manual' ? 'manual' : null,
+            lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setLocationState(newState);
+          localStorage.setItem('nivarya_location_state', JSON.stringify(newState));
+          reject(new Error(isDenied ? 'Location permission denied by browser.' : 'Unable to acquire GPS signal.'));
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+      );
+    });
+  };
+
+  // Set location manually
+  const setManualLocation = ({ city, address }) => {
+    const newState = {
+      coords: locationState.coords,
+      city: city || locationState.city || '',
+      address: address || locationState.address || '',
+      status: 'manual',
+      statusMessage: `Manual: ${city || address}`,
+      source: 'manual',
+      lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setLocationState(newState);
+    localStorage.setItem('nivarya_location_state', JSON.stringify(newState));
+    setUserProfile(prev => ({
+      ...prev,
+      city: city || prev.city,
+      location: address || prev.location
+    }));
+    // Persist to user record
+    try {
+      const sessionRaw = localStorage.getItem('nivarya_auth_session');
+      if (sessionRaw) {
+        const u = JSON.parse(sessionRaw);
+        if (u && u.id) {
+          const usersRaw = localStorage.getItem('nivarya_auth_users');
+          if (usersRaw) {
+            const users = JSON.parse(usersRaw);
+            const idx = users.findIndex(usr => usr.id === u.id);
+            if (idx !== -1) {
+              users[idx].city = city || users[idx].city;
+              users[idx].location = address || users[idx].location;
+              users[idx].locationState = newState;
+              localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
+            }
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return newState;
+  };
+
+  // Derived currentCoordinates object
+  const currentCoordinates = locationState.coords ? {
+    lat: locationState.coords.lat,
+    lng: locationState.coords.lng,
+    address: locationState.address || locationState.city || 'Device GPS Location',
+    accuracy: `GPS (±${locationState.coords.accuracy}m)`,
+    source: 'gps',
+    lastUpdated: locationState.lastUpdated || 'Active'
+  } : {
+    lat: null,
+    lng: null,
+    address: locationState.address || locationState.city || (userProfile.city ? `${userProfile.location || ''} ${userProfile.city}`.trim() : 'Location not set'),
+    accuracy: locationState.status === 'denied' ? 'Permission Denied' : (locationState.source === 'manual' ? 'Manual Location' : 'Not Set'),
+    source: locationState.source || null,
+    lastUpdated: locationState.lastUpdated || null
+  };
 
   const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [sharingDuration, setSharingDuration] = useState('30m'); // '15m' | '30m' | '1h' | 'journey'
   const [shareToken, setShareToken] = useState(() => initialRoute.trackingId || generateTrackingId());
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  // Saves a live tracking session with real user identity & coordinates
+  const saveTrackingSession = (token, duration = '30m') => {
+    const sessionData = {
+      trackingId: token,
+      userName: userProfile.name || 'Nivarya Member',
+      coords: locationState.coords,
+      address: locationState.address || userProfile.location || (locationState.coords ? 'GPS Location' : 'Location Not Set'),
+      city: userProfile.city || locationState.city || '',
+      accuracy: locationState.coords ? `GPS (±${locationState.coords.accuracy}m)` : (locationState.status === 'denied' ? 'Permission Denied' : 'Manual Location'),
+      status: locationState.status,
+      source: locationState.source,
+      batteryLevel: batteryLevel,
+      duration: duration,
+      startedAt: new Date().toISOString()
+    };
+    try {
+      localStorage.setItem(`nivarya_track_${token}`, JSON.stringify(sessionData));
+    } catch (e) { /* ignore */ }
+    return sessionData;
+  };
 
   const startLocationSharing = (duration = '30m') => {
     const newToken = generateTrackingId();
@@ -226,6 +539,7 @@ export function AppProvider({ children }) {
     setSharingDuration(duration);
     setShareToken(newToken);
     setCurrentTrackingId(newToken);
+    saveTrackingSession(newToken, duration);
     showToast(`Live GPS sharing active for ${duration === 'journey' ? 'journey duration' : duration}`, 'safe');
     addSafetyHistory({
       type: 'location',
@@ -681,18 +995,28 @@ export function AppProvider({ children }) {
     showToast('Evidence file removed from local cache', 'info');
   };
 
-  // Battery-Aware Emergency Mode
-  const [batteryLevel, setBatteryLevel] = useState(72);
+  // Real Battery Detection with Device Battery Status API
+  const [batteryLevel, setBatteryLevel] = useState(null);
   const [isLowBatteryMode, setIsLowBatteryMode] = useState(false);
 
   useEffect(() => {
-    if (batteryLevel < 20) {
-      if (!isLowBatteryMode) {
-        setIsLowBatteryMode(true);
-        showToast('Low battery detected (<20%). Battery-Aware Emergency Mode auto-activated!', 'danger');
-      }
+    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
+      navigator.getBattery().then(battery => {
+        const level = Math.round(battery.level * 100);
+        setBatteryLevel(level);
+        if (level < 20) setIsLowBatteryMode(true);
+
+        const handleLevel = () => {
+          const updated = Math.round(battery.level * 100);
+          setBatteryLevel(updated);
+          if (updated < 20) setIsLowBatteryMode(true);
+        };
+        battery.addEventListener('levelchange', handleLevel);
+      }).catch(() => {
+        setBatteryLevel(null);
+      });
     }
-  }, [batteryLevel, isLowBatteryMode]);
+  }, []);
 
   const toggleLowBatteryMode = () => {
     setIsLowBatteryMode(prev => {
@@ -910,7 +1234,9 @@ export function AppProvider({ children }) {
 
         // Location & GPS Tracking
         currentCoordinates,
-        setCurrentCoordinates,
+        locationState,
+        requestGpsLocation,
+        setManualLocation,
         isSharingLocation,
         sharingDuration,
         shareToken,
@@ -918,8 +1244,11 @@ export function AppProvider({ children }) {
         setCurrentTrackingId,
         startLocationSharing,
         stopLocationSharing,
+        saveTrackingSession,
         isLocationModalOpen,
         setIsLocationModalOpen,
+        isLocationConsentModalOpen,
+        setIsLocationConsentModalOpen,
 
         // Community Incidents
         incidents,

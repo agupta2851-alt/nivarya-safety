@@ -76,22 +76,30 @@ export default function LocationSharingModal({ isOpen, onClose }) {
           Broadcast an encrypted real-time GPS beacon to your selected trusted contacts with automatic expiration.
         </p>
 
-        {/* Current Coordinate Box */}
+        {/* Current Coordinate / Location Box */}
         <div style={{ background: 'rgba(7, 11, 20, 0.6)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-subtle)', marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
               Live Telemetry Coordinates
             </span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--safe-light)', background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+            <span style={{ fontSize: '0.75rem', color: currentCoordinates?.lat ? 'var(--safe-light)' : '#F59E0B', background: currentCoordinates?.lat ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
               {currentCoordinates.accuracy}
             </span>
           </div>
-          <div style={{ fontFamily: 'monospace', fontSize: '1.05rem', color: '#FFFFFF', fontWeight: 700 }}>
-            {currentCoordinates.lat}° N, {currentCoordinates.lng}° E
-          </div>
-          <div style={{ fontSize: '0.82rem', color: '#94A3B8', marginTop: '4px' }}>
-            {currentCoordinates.address}
-          </div>
+          {currentCoordinates?.lat != null ? (
+            <div style={{ fontFamily: 'monospace', fontSize: '1.05rem', color: '#FFFFFF', fontWeight: 700 }}>
+              {currentCoordinates.lat.toFixed(4)}° N, {currentCoordinates.lng.toFixed(4)}° E
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.95rem', color: '#CBD5E1', fontWeight: 600 }}>
+              {currentCoordinates.address}
+            </div>
+          )}
+          {currentCoordinates?.lat != null && currentCoordinates?.address && (
+            <div style={{ fontSize: '0.82rem', color: '#94A3B8', marginTop: '4px' }}>
+              {currentCoordinates.address}
+            </div>
+          )}
         </div>
 
         {/* Duration Selector */}

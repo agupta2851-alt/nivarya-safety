@@ -55,16 +55,30 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   const userMarkerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
 
-  const userName = userProfile?.name || 'User';
-  const userPhone = userProfile?.phone || '+91 98765 11223';
-  const cleanPhone = userPhone.replace(/[^0-9]/g, '') || '919876511223';
-  const firstName = userName.split(' ')[0] || 'User';
+  const savedSession = typeof window !== 'undefined' ? (() => {
+    try {
+      const raw = localStorage.getItem(`nivarya_track_${activeId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  })() : null;
 
-  const coords = currentCoordinates || {
-    lat: 18.5204,
-    lng: 73.8567,
-    address: 'Near University North Circle, Sector 4, Pune',
-    accuracy: 'High Accuracy (±3m)',
+  const sessionUserName = savedSession?.userName || userProfile?.name || 'Nivarya Member';
+  const userPhone = userProfile?.phone || '';
+  const cleanPhone = userPhone.replace(/[^0-9]/g, '');
+  const firstName = sessionUserName.split(' ')[0] || 'Member';
+
+  const hasGps = Boolean(savedSession?.coords?.lat || currentCoordinates?.lat);
+  const coords = hasGps ? {
+    lat: savedSession?.coords?.lat || currentCoordinates.lat,
+    lng: savedSession?.coords?.lng || currentCoordinates.lng,
+    address: savedSession?.address || currentCoordinates.address || 'Real-time GPS Beacon',
+    accuracy: savedSession?.accuracy || currentCoordinates.accuracy || 'GPS Lock Active',
+    lastUpdated: 'Just now'
+  } : {
+    lat: null,
+    lng: null,
+    address: savedSession?.address || currentCoordinates?.address || (userProfile?.city ? `${userProfile.location ? `${userProfile.location}, ` : ''}${userProfile.city}` : 'Area not specified'),
+    accuracy: savedSession?.status === 'denied' ? 'Permission Denied' : 'Area Telemetry Only',
     lastUpdated: 'Just now'
   };
 
@@ -91,7 +105,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
 
   // Initialize and update Leaflet Map
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current || !coords.lat || !coords.lng) return;
 
     if (!mapInstanceRef.current) {
       if (mapContainerRef.current._leaflet_id) {
@@ -284,7 +298,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
               <span>LIVE GPS BROADCAST ACTIVE</span>
             </div>
             <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px 0' }}>
-              Tracking {userName}
+              Tracking {sessionUserName}
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
               Live real-time satellite telemetry shared via encrypted private channel with trusted network.
@@ -409,11 +423,32 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
           </div>
         </div>
 
-        {/* Leaflet Map DOM Element */}
-        <div 
-          ref={mapContainerRef} 
-          style={{ width: '100%', height: '420px', background: '#070B14' }}
-        />
+        {/* Leaflet Map or Manual Location Display */}
+        {coords.lat != null ? (
+          <div 
+            ref={mapContainerRef} 
+            style={{ width: '100%', height: '420px', background: '#070B14' }}
+          />
+        ) : (
+          <div style={{
+            height: '320px',
+            background: 'rgba(7, 11, 20, 0.75)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px',
+            textAlign: 'center'
+          }}>
+            <MapPin size={42} color="var(--primary-light)" style={{ marginBottom: '12px' }} />
+            <h3 style={{ color: '#FFFFFF', fontSize: '1.2rem', marginBottom: '6px' }}>
+              Device GPS Coordinates Not Active
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', fontSize: '0.88rem', margin: '0 auto 12px auto' }}>
+              The user has shared their location as: <strong style={{ color: '#FFFFFF' }}>{coords.address}</strong>. Satellite GPS coordinates were not provided or permission was withheld.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Grid: Coordinates & Emergency Actions */}

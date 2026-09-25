@@ -108,6 +108,15 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUserProfile = async (updates) => {
+    if (!currentUser) return null;
+    const updated = authService.updateUserProfile(currentUser.id, updates);
+    if (updated) {
+      setCurrentUser(updated);
+    }
+    return updated;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -121,7 +130,8 @@ export function AuthProvider({ children }) {
         loginWithGoogle,
         quickDemoLogin,
         logout,
-        resetPassword
+        resetPassword,
+        updateUserProfile
       }}
     >
       {children}

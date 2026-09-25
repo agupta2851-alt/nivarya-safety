@@ -19,10 +19,14 @@ import {
 } from 'lucide-react';
 
 export default function SafestRoutePage() {
-  const { startJourney, setCurrentPage, showToast } = useApp();
+  const { startJourney, setCurrentPage, showToast, locationState, userProfile } = useApp();
   
-  const [startPoint, setStartPoint] = useState('University North Gate');
-  const [destination, setDestination] = useState('Sector 14 Residential Hostel');
+  const defaultStart = locationState?.address 
+    ? `${locationState.address}${locationState.city ? `, ${locationState.city}` : ''}`
+    : (userProfile?.manualLocation || userProfile?.location || userProfile?.city || 'Current Location');
+
+  const [startPoint, setStartPoint] = useState(defaultStart);
+  const [destination, setDestination] = useState('Central Safe Zone Transit');
   const [selectedRouteId, setSelectedRouteId] = useState('route-safest');
 
   const selectedRoute = safeRoutesData.find(r => r.id === selectedRouteId) || safeRoutesData[0];

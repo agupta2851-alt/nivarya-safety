@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { buildTrackingUrl } from '../utils/tracking';
 import { 
   Car, 
   ShieldAlert, 
@@ -29,7 +30,9 @@ export default function CabSafetyPage() {
     triggerUnusualStop, 
     triggerSos,
     showToast,
-    userProfile
+    userProfile,
+    currentCoordinates,
+    currentTrackingId
   } = useApp();
 
   const [isFakeCallActive, setIsFakeCallActive] = useState(false);
@@ -295,8 +298,11 @@ export default function CabSafetyPage() {
           <button 
             className="btn btn-secondary"
             onClick={() => {
-              navigator.clipboard.writeText(`I am in cab ${cabDetails.cabNumber} (${cabDetails.cabCompany}). Driver: ${cabDetails.driverName}. Live GPS: https://maps.google.com/?q=18.5204,73.8567`);
-              showToast('Cab details and live GPS copied to share!', 'safe');
+              const liveLink = currentCoordinates 
+                ? `https://maps.google.com/?q=${currentCoordinates.lat},${currentCoordinates.lng}` 
+                : (currentTrackingId ? buildTrackingUrl(currentTrackingId) : (userProfile?.manualLocation ? `Location: ${userProfile.manualLocation}` : 'Live tracking active'));
+              navigator.clipboard.writeText(`I am in cab ${cabDetails.cabNumber} (${cabDetails.cabCompany}). Driver: ${cabDetails.driverName}. Live Location: ${liveLink}`);
+              showToast('Cab details and live location copied to share!', 'safe');
             }}
             style={{ padding: '14px', justifyContent: 'center' }}
           >

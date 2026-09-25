@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { contactCategories } from '../data/initialData';
+import { buildTrackingUrl } from '../utils/tracking';
 import { 
   Users, 
   UserPlus, 
@@ -26,7 +27,9 @@ export default function TrustedContactsPage() {
     toggleContactSosSelection,
     selectedContactsForJourney,
     toggleContactJourneySelection,
-    showToast, 
+    showToast,
+    currentCoordinates,
+    currentTrackingId,
     t 
   } = useApp();
 
@@ -89,9 +92,12 @@ export default function TrustedContactsPage() {
   };
 
   const handleShareLocation = (name) => {
-    const mockLocationUrl = `https://maps.google.com/?q=18.5204,73.8567`;
-    navigator.clipboard.writeText(mockLocationUrl);
-    showToast(`Simulated location link sent to ${name}!`, 'safe');
+    const trackingUrl = buildTrackingUrl(currentTrackingId);
+    const locationUrl = currentCoordinates?.lat != null 
+      ? `https://maps.google.com/?q=${currentCoordinates.lat},${currentCoordinates.lng}` 
+      : trackingUrl;
+    navigator.clipboard.writeText(locationUrl);
+    showToast(`Live tracking link copied to share with ${name}!`, 'safe');
   };
 
   return (
@@ -282,7 +288,7 @@ export default function TrustedContactsPage() {
                 <input 
                   type="text"
                   className="input-field"
-                  placeholder="e.g. Sunita Sharma"
+                  placeholder="e.g. Guardian / Contact Name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   required

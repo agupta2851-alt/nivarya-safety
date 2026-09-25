@@ -11,11 +11,13 @@ import LowBatteryModal from './components/LowBatteryModal';
 import OfflineEmergencyBanner from './components/OfflineEmergencyBanner';
 import NearbyRespondersModal from './components/NearbyRespondersModal';
 import LocationSharingModal from './components/LocationSharingModal';
+import LocationConsentModal from './components/LocationConsentModal';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Authentication Pages
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ProfileSetupPage from './pages/ProfileSetupPage';
 
 // Existing Pages
 import LandingPage from './pages/LandingPage';
@@ -52,7 +54,9 @@ function MainApp() {
     isRespondersModalOpen, 
     setIsRespondersModalOpen,
     isLocationModalOpen,
-    setIsLocationModalOpen
+    setIsLocationModalOpen,
+    isLocationConsentModalOpen,
+    setIsLocationConsentModalOpen
   } = useApp();
 
   const renderCurrentPage = () => {
@@ -71,6 +75,8 @@ function MainApp() {
         return <LoginPage />;
       case 'signup':
         return <SignupPage />;
+      case 'profile-setup':
+        return <ProfileSetupPage />;
       case 'dashboard':
         return (
           <ProtectedRoute title="Personal Safety Dashboard">
@@ -170,6 +176,12 @@ function MainApp() {
       <LocationSharingModal
         isOpen={isLocationModalOpen}
         onClose={() => setIsLocationModalOpen(false)}
+      />
+
+      {/* Location Consent & GPS Selection Modal */}
+      <LocationConsentModal
+        isOpen={isLocationConsentModalOpen}
+        onClose={() => setIsLocationConsentModalOpen(false)}
       />
 
       {/* Toast Alert Notifications */}

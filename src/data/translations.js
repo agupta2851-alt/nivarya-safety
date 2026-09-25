@@ -31,10 +31,11 @@ export const translations = {
       privacy: "Privacy Dashboard"
     },
     dashboard: {
-      welcome: "Welcome back, Ananya",
+      welcome: "Welcome back,",
+      welcomePrefix: "Welcome back,",
       statusTitle: "Safety Guard Status",
       statusActive: "Active & Guarding",
-      statusDesc: "Safe zone detected • GPS High Accuracy (Simulated)",
+      statusDesc: "Live safety shield active • GPS & Guardian Network ready",
       quickSos: "TRIGGER EMERGENCY SOS",
       quickSosDesc: "Hold or click to activate instant 3-second alert cascade",
       startJourneyCard: "Begin a New Journey",
@@ -182,10 +183,11 @@ export const translations = {
       privacy: "गोपनीयता डैशबोर्ड"
     },
     dashboard: {
-      welcome: "स्वागत है, अनन्या",
+      welcome: "स्वागत है,",
+      welcomePrefix: "स्वागत है,",
       statusTitle: "सुरक्षा शील्ड स्थिति",
       statusActive: "सक्रिय एवं निगरानी में",
-      statusDesc: "सुरक्षित क्षेत्र पहचाना गया • उच्च परिशुद्धता GPS (सिम्युलेटेड)",
+      statusDesc: "सुरक्षा शील्ड सक्रिय • GPS एवं अभिभावक नेटवर्क तैयार",
       quickSos: "आपातकालीन SOS सक्रिय करें",
       quickSosDesc: "3-सेकंड चेतावनी के साथ तुरंत अलर्ट भेजने के लिए दबाएं",
       startJourneyCard: "नई यात्रा शुरू करें",
@@ -333,10 +335,11 @@ export const translations = {
       privacy: "गोपनीयता डॅशबोर्ड"
     },
     dashboard: {
-      welcome: "स्वागत आहे, अनन्या",
+      welcome: "स्वागत आहे,",
+      welcomePrefix: "स्वागत आहे,",
       statusTitle: "सुरक्षा स्थिती",
       statusActive: "सक्रिय आणि सुरक्षित",
-      statusDesc: "सुरक्षित क्षेत्र ओळखले गेले • उच्च अचूकता GPS (सिम्युलेटेड)",
+      statusDesc: "सुरक्षा शील्ड सक्रिय • GPS आणि पालक नेटवर्क सज्ज",
       quickSos: "तातडीचा SOS सक्रिय करा",
       quickSosDesc: "3-सेकंद इशारा कालावधीसह त्वरित मदत मिळवण्यासाठी दाबा",
       startJourneyCard: "नवीन प्रवास सुरू करा",

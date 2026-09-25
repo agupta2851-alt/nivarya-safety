@@ -19,7 +19,8 @@ import {
   Sliders,
   Sparkles,
   Download,
-  LogOut
+  LogOut,
+  MapPin
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -36,36 +37,65 @@ export default function ProfilePage() {
     isLowBatteryMode,
     toggleLowBatteryMode,
     exportPersonalData,
+    locationState,
+    setIsLocationConsentModalOpen,
     t 
   } = useApp();
 
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, updateUserProfile } = useAuth();
 
-  const [name, setName] = useState(userProfile.name);
-  const [phone, setPhone] = useState(userProfile.phone);
+  const [name, setName] = useState(userProfile.name || currentUser?.name || '');
+  const [phone, setPhone] = useState(userProfile.phone || currentUser?.phone || '');
+  const [age, setAge] = useState(userProfile.age || '');
+  const [city, setCity] = useState(userProfile.city || '');
+  const [manualLocation, setManualLocationVal] = useState(userProfile.manualLocation || '');
   const [bloodGroup, setBloodGroup] = useState(userProfile.bloodGroup || 'O+ Positive');
   const [emergencyNotes, setEmergencyNotes] = useState(userProfile.emergencyNotes || '');
   const [safetyPin, setSafetyPin] = useState(userProfile.safetyPin || '1234');
   const [sosDelay, setSosDelay] = useState(userProfile.sosDelay || 3);
   const [highAccuracyGps, setHighAccuracyGps] = useState(userProfile.highAccuracyGps !== false);
 
+  React.useEffect(() => {
+    if (userProfile) {
+      setName(userProfile.name || currentUser?.name || '');
+      setPhone(userProfile.phone || currentUser?.phone || '');
+      setAge(userProfile.age || '');
+      setCity(userProfile.city || '');
+      setManualLocationVal(userProfile.manualLocation || '');
+      setBloodGroup(userProfile.bloodGroup || 'O+ Positive');
+      setEmergencyNotes(userProfile.emergencyNotes || '');
+      setSafetyPin(userProfile.safetyPin || '1234');
+      if (userProfile.sosDelay != null) setSosDelay(userProfile.sosDelay);
+    }
+  }, [userProfile, currentUser]);
+
   const handleSaveProfile = (e) => {
     e.preventDefault();
-    setUserProfile(prev => ({
-      ...prev,
+    const updated = {
       name,
       phone,
+      age,
+      city,
+      manualLocation,
+      location: manualLocation || city,
       bloodGroup,
       emergencyNotes,
       safetyPin,
       sosDelay: Number(sosDelay),
       highAccuracyGps
+    };
+    setUserProfile(prev => ({
+      ...prev,
+      ...updated
     }));
+    if (updateUserProfile) {
+      updateUserProfile(updated);
+    }
     showToast('Profile and security preferences updated successfully!', 'safe');
   };
 
   const handleResetDemoData = () => {
-    if (window.confirm('Reset all demo data (contacts, incidents, profile) to factory defaults?')) {
+    if (window.confirm('Clear all local session cache and stored data? This will log you out.')) {
       localStorage.clear();
       window.location.reload();
     }
@@ -178,6 +208,43 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Age (Optional)</label>
+              <input 
+                type="number"
+                min="10"
+                max="120"
+                className="input-field"
+                placeholder="e.g. 24"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">City</label>
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="e.g. Mumbai, Bengaluru, Delhi"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Preferred / Manual Location</label>
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="e.g. Indiranagar, Bengaluru"
+                value={manualLocation}
+                onChange={(e) => setManualLocationVal(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Blood Group</label>
@@ -202,11 +269,64 @@ export default function ProfilePage() {
               <input 
                 type="text"
                 className="input-field"
-                placeholder="e.g. Asthmatic, Penicillin allergy"
+                placeholder="e.g. Asthmatic, Penicillin allergy (optional)"
                 value={emergencyNotes}
                 onChange={(e) => setEmergencyNotes(e.target.value)}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Location & Geolocation Privacy Card */}
+        <div className="glass-card" style={{ padding: '24px', borderRadius: '18px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '1.2rem', color: '#FFFFFF', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <MapPin size={18} color="#10B981" />
+              <span>Location Privacy & Geolocation Status</span>
+            </h3>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setIsLocationConsentModalOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <MapPin size={14} />
+              <span>Change Location Mode / Re-detect</span>
+            </button>
+          </div>
+
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.6)',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Current Location Status</div>
+              <div style={{ fontWeight: 600, color: '#FFFFFF', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: locationState?.mode === 'gps' ? '#10B981' : (locationState?.mode === 'manual' ? '#6366F1' : '#F59E0B')
+                }}></span>
+                <span>
+                  {locationState?.mode === 'gps' && locationState.coords
+                    ? `Live Device GPS (${locationState.coords.lat.toFixed(4)}, ${locationState.coords.lng.toFixed(4)})`
+                    : (locationState?.mode === 'manual' && locationState.manualAddress
+                      ? `Manual Location: ${locationState.manualAddress}`
+                      : 'Location not configured')}
+                </span>
+              </div>
+            </div>
+            <span className={`badge ${locationState?.mode === 'gps' ? 'badge-safe' : 'badge-primary'}`}>
+              {locationState?.mode === 'gps' ? 'Real-Time GPS' : (locationState?.mode === 'manual' ? 'Manual Fallback' : 'Pending')}
+            </span>
           </div>
         </div>
 
@@ -360,7 +480,7 @@ export default function ProfilePage() {
             style={{ color: '#F87171' }}
           >
             <Trash2 size={15} />
-            <span>Reset Demo Data to Defaults</span>
+            <span>Clear App Cache & Data</span>
           </button>
         </div>
       </form>

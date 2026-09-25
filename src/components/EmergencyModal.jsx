@@ -42,17 +42,26 @@ export default function EmergencyModal() {
 
   if (!isSosModalOpen) return null;
 
-  const mockCoords = currentCoordinates || {
-    lat: 18.5204,
-    lng: 73.8567,
-    address: 'Near University North Circle, Sector 4, Pune'
+  const mockCoords = currentCoordinates?.lat != null ? currentCoordinates : {
+    lat: null,
+    lng: null,
+    address: currentCoordinates?.address || (userProfile?.city ? `${userProfile.location || ''} ${userProfile.city}`.trim() : 'Location not specified')
   };
 
-  const emergencyMessage = `EMERGENCY ALERT from Nivarya: I need immediate assistance. My simulated live GPS location is: https://maps.google.com/?q=${mockCoords.lat},${mockCoords.lng} (${mockCoords.address}). Please call emergency services if I do not respond.`;
+  const emergencyLocationSnippet = mockCoords.lat != null 
+    ? `Live GPS coordinates: https://maps.google.com/?q=${mockCoords.lat},${mockCoords.lng} (${mockCoords.address})`
+    : `Location: ${mockCoords.address}`;
+
+  const emergencyMessage = `EMERGENCY ALERT from Nivarya: I need immediate assistance! ${emergencyLocationSnippet}. Please dispatch help immediately.`;
 
   const copyCoordinates = () => {
-    navigator.clipboard.writeText(`${mockCoords.lat}, ${mockCoords.lng}`);
-    showToast('GPS coordinates copied to clipboard!', 'safe');
+    if (mockCoords.lat != null) {
+      navigator.clipboard.writeText(`${mockCoords.lat}, ${mockCoords.lng}`);
+      showToast('GPS coordinates copied to clipboard!', 'safe');
+    } else {
+      navigator.clipboard.writeText(mockCoords.address);
+      showToast('Location details copied to clipboard!', 'safe');
+    }
   };
 
   const shareWhatsApp = () => {
@@ -187,9 +196,15 @@ export default function EmergencyModal() {
                   <span>Copy</span>
                 </button>
               </div>
-              <div style={{ fontFamily: 'monospace', color: '#FFFFFF', fontSize: '0.95rem', fontWeight: 600 }}>
-                {mockCoords.lat}° N, {mockCoords.lng}° E
-              </div>
+              {mockCoords.lat != null ? (
+                <div style={{ fontFamily: 'monospace', color: '#FFFFFF', fontSize: '0.95rem', fontWeight: 600 }}>
+                  {mockCoords.lat.toFixed(4)}° N, {mockCoords.lng.toFixed(4)}° E
+                </div>
+              ) : (
+                <div style={{ color: '#FBBF24', fontSize: '0.88rem', fontWeight: 600 }}>
+                  Device GPS coordinates not acquired
+                </div>
+              )}
               <div style={{ color: '#94A3B8', fontSize: '0.82rem', marginTop: '4px' }}>
                 {mockCoords.address}
               </div>

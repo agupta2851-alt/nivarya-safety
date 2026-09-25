@@ -12,19 +12,49 @@ import {
 } from 'lucide-react';
 
 export default function ProtectedRoute({ children, title = 'Protected Safety Portal' }) {
-  const { isAuthenticated, quickDemoLogin, isLoading } = useAuth();
-  const { setCurrentPage, triggerSos, showToast } = useApp();
+  const { currentUser, isAuthenticated, quickDemoLogin, isLoading } = useAuth();
+  const { setCurrentPage, userProfile, triggerSos, showToast } = useApp();
   const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false);
 
   if (isAuthenticated) {
+    const isComplete = currentUser?.isProfileComplete || userProfile?.isProfileComplete;
+    if (!isComplete) {
+      return (
+        <div className="container animate-fade-in" style={{ paddingTop: '40px', paddingBottom: '80px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+          <div className="glass-card" style={{ padding: '36px 24px', borderRadius: '20px' }}>
+            <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', color: 'var(--primary-light)' }}>
+              <Lock size={26} />
+            </div>
+            <h2 style={{ color: '#FFFFFF', fontSize: '1.5rem', fontWeight: 800, marginBottom: '10px' }}>
+              Complete Your Safety Profile
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.94rem', marginBottom: '24px', lineHeight: 1.6 }}>
+              Please set up your identity, emergency guardian, and safety PIN before viewing the personal dashboard.
+            </p>
+            <button 
+              className="btn btn-primary btn-lg" 
+              style={{ width: '100%', justifyContent: 'center' }}
+              onClick={() => setCurrentPage('profile-setup')}
+            >
+              Complete Profile Setup Now
+            </button>
+          </div>
+        </div>
+      );
+    }
     return children;
   }
 
   const handleDemoAccess = async () => {
     setIsDemoLoggingIn(true);
     try {
-      await quickDemoLogin();
-      showToast('Authenticated as Ananya Sharma (Demo Profile)', 'safe');
+      const user = await quickDemoLogin();
+      showToast(`Authenticated as ${user.name}`, 'safe');
+      if (!user.isProfileComplete) {
+        setCurrentPage('profile-setup');
+      } else {
+        setCurrentPage('dashboard');
+      }
     } catch (err) {
       showToast('Demo login error: ' + err.message, 'danger');
     } finally {
@@ -128,7 +158,7 @@ export default function ProtectedRoute({ children, title = 'Protected Safety Por
             }}
           >
             <Sparkles size={16} color="#818CF8" />
-            <span>{isDemoLoggingIn ? 'Unlocking Demo...' : 'Instant Demo Access (Ananya Sharma)'}</span>
+            <span>{isDemoLoggingIn ? 'Unlocking Demo Access...' : '[DEMO] 1-Click Tester Access (Development Only)'}</span>
           </button>
         </div>
 
