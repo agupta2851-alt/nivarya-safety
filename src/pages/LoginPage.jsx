@@ -18,7 +18,7 @@ import {
 
 export default function LoginPage() {
   const { login, loginWithGoogle, quickDemoLogin, resetPassword, isLoading } = useAuth();
-  const { setCurrentPage, setUserProfile, showToast, triggerSos, t } = useApp();
+  const { setCurrentPage, setUserProfile, syncUserProfileFromSession, showToast, triggerSos, t } = useApp();
 
   // Form State
   const [identifier, setIdentifier] = useState('');
@@ -62,19 +62,23 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const user = await login(identifier, password);
-      // Synchronize with AppContext profile
-      setUserProfile(prev => ({
-        ...prev,
-        name: user.name,
-        email: user.email || '',
-        phone: user.phone || '',
-        city: user.city || '',
-        location: user.location || '',
-        bloodGroup: user.bloodGroup || '',
-        emergencyNotes: user.emergencyNotes || '',
-        safetyPin: user.safetyPin || '1234',
-        isProfileComplete: Boolean(user.isProfileComplete)
-      }));
+      // Synchronize with AppContext profile, contacts, and location
+      if (typeof syncUserProfileFromSession === 'function') {
+        syncUserProfileFromSession(user);
+      } else {
+        setUserProfile(prev => ({
+          ...prev,
+          name: user.name,
+          email: user.email || '',
+          phone: user.phone || '',
+          city: user.city || '',
+          location: user.location || '',
+          bloodGroup: user.bloodGroup || '',
+          emergencyNotes: user.emergencyNotes || '',
+          safetyPin: user.safetyPin || '1234',
+          isProfileComplete: Boolean(user.isProfileComplete)
+        }));
+      }
       showToast(`Welcome back, ${user.name}! Safety Guard active.`, 'safe');
       if (!user.isProfileComplete) {
         setCurrentPage('profile-setup');
@@ -94,12 +98,16 @@ export default function LoginPage() {
     setIsGoogleSubmitting(true);
     try {
       const user = await loginWithGoogle();
-      setUserProfile(prev => ({
-        ...prev,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || prev.phone
-      }));
+      if (typeof syncUserProfileFromSession === 'function') {
+        syncUserProfileFromSession(user);
+      } else {
+        setUserProfile(prev => ({
+          ...prev,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || prev.phone
+        }));
+      }
       showToast('Signed in securely with Google.', 'safe');
       if (!user.isProfileComplete) {
         setCurrentPage('profile-setup');
@@ -119,12 +127,16 @@ export default function LoginPage() {
     setIsDemoSubmitting(true);
     try {
       const user = await quickDemoLogin();
-      setUserProfile(prev => ({
-        ...prev,
-        name: user.name,
-        email: user.email,
-        phone: user.phone
-      }));
+      if (typeof syncUserProfileFromSession === 'function') {
+        syncUserProfileFromSession(user);
+      } else {
+        setUserProfile(prev => ({
+          ...prev,
+          name: user.name,
+          email: user.email,
+          phone: user.phone
+        }));
+      }
       showToast(`Signed in as ${user.name}.`, 'safe');
       if (!user.isProfileComplete) {
         setCurrentPage('profile-setup');

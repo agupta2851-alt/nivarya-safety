@@ -48,6 +48,8 @@ export default function DashboardPage() {
     batteryLevel,
     isLowBatteryMode,
     toggleLowBatteryMode,
+    platformStats,
+    safetyHistory,
     t 
   } = useApp();
 
@@ -221,6 +223,94 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Real-time Dynamic Telemetry & Database Statistics Strip */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '14px',
+        marginBottom: '24px'
+      }}>
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.7)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', color: '#818CF8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Users size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF' }}>
+              {platformStats?.totalUsers ?? 0}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Registered Members</div>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.7)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#34D399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Navigation size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF' }}>
+              {platformStats?.activeJourneys ?? 0}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Active Trips Monitored</div>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.7)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#FBBF24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AlertTriangle size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF' }}>
+              {platformStats?.safetyReports ?? 0}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Verified Hazard Reports</div>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.7)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(236, 72, 153, 0.15)', color: '#EC4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF' }}>
+              {contacts.length}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Your Trusted Guardians</div>
+          </div>
+        </div>
+      </div>
+
       {/* 2. Feature 16: Contextual Safety Mode Switcher */}
       <SafetyModeSwitcher />
 
@@ -385,8 +475,12 @@ export default function DashboardPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.85rem' }}>
               <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
-                <span style={{ color: '#94A3B8', fontSize: '0.75rem', display: 'block' }}>Frequent Route</span>
-                <strong style={{ color: '#FFFFFF' }}>Campus ➔ Sector 14 Hostel</strong>
+                <span style={{ color: '#94A3B8', fontSize: '0.75rem', display: 'block' }}>Recent Route</span>
+                <strong style={{ color: '#FFFFFF' }}>
+                  {activeJourney?.startPoint && activeJourney?.destination 
+                    ? `${activeJourney.startPoint} ➔ ${activeJourney.destination}` 
+                    : 'No routes tracked yet'}
+                </strong>
               </div>
               <div style={{ background: 'var(--bg-surface)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                 <span style={{ color: '#94A3B8', fontSize: '0.75rem', display: 'block' }}>Check-in Interval</span>
@@ -412,39 +506,34 @@ export default function DashboardPage() {
             </div>
 
             <div className="activity-feed">
-              <div className="activity-item">
-                <div className="activity-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34D399' }}>
-                  <CheckCircle2 size={18} />
-                </div>
-                <div className="activity-content">
-                  <div className="activity-text">Simulated safe check-in verified at Central Metro Gate 2</div>
-                  <div className="activity-time">Today, 08:42 AM • Location Synced</div>
-                </div>
-              </div>
-
-              <div className="activity-item">
-                <div className="activity-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818CF8' }}>
-                  <ShieldCheck size={18} />
-                </div>
-                <div className="activity-content">
-                  <div className="activity-text">
-                    {contacts.length > 0 
-                      ? `Primary emergency contact verified: ${contacts[0]?.name} (${contacts[0]?.relation})`
-                      : 'No emergency contacts registered yet. Please add a guardian.'}
+              {safetyHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#94A3B8' }}>
+                  <Activity size={26} style={{ margin: '0 auto 8px auto', opacity: 0.4 }} />
+                  <div style={{ fontWeight: 600, color: '#E2E8F0', fontSize: '0.9rem', marginBottom: '4px' }}>
+                    No activity yet
                   </div>
-                  <div className="activity-time">Guardian Network Check</div>
+                  <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>
+                    Your safe journeys, automated check-ins, and emergency alerts will appear here in real-time.
+                  </div>
                 </div>
-              </div>
-
-              <div className="activity-item">
-                <div className="activity-icon" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D' }}>
-                  <Clock size={18} />
-                </div>
-                <div className="activity-content">
-                  <div className="activity-text">Community hazard reported: Unlit walkway near Bus Stop 14B</div>
-                  <div className="activity-time">2 days ago • Verified by 38 students</div>
-                </div>
-              </div>
+              ) : (
+                safetyHistory.slice(0, 4).map(item => (
+                  <div key={item.id} className="activity-item">
+                    <div className="activity-icon" style={{
+                      background: item.type === 'sos' ? 'rgba(239, 68, 68, 0.15)' : item.type === 'journey' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                      color: item.type === 'sos' ? '#F87171' : item.type === 'journey' ? '#818CF8' : '#34D399'
+                    }}>
+                      {item.type === 'sos' ? <AlertTriangle size={18} /> : item.type === 'journey' ? <Navigation size={18} /> : <CheckCircle2 size={18} />}
+                    </div>
+                    <div className="activity-content">
+                      <div className="activity-text">{item.title}</div>
+                      <div className="activity-time">
+                        {item.time} {item.date ? `• ${item.date}` : ''} {item.location ? `• ${item.location}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

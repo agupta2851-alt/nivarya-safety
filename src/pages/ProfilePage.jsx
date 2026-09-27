@@ -27,6 +27,7 @@ export default function ProfilePage() {
   const { 
     userProfile, 
     setUserProfile, 
+    saveProfile,
     language, 
     changeLanguage, 
     setCurrentPage, 
@@ -69,7 +70,7 @@ export default function ProfilePage() {
     }
   }, [userProfile, currentUser]);
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     const updated = {
       name,
@@ -84,14 +85,22 @@ export default function ProfilePage() {
       sosDelay: Number(sosDelay),
       highAccuracyGps
     };
-    setUserProfile(prev => ({
-      ...prev,
-      ...updated
-    }));
-    if (updateUserProfile) {
-      updateUserProfile(updated);
+    try {
+      if (typeof saveProfile === 'function') {
+        await saveProfile(updated);
+      } else {
+        setUserProfile(prev => ({
+          ...prev,
+          ...updated
+        }));
+        if (updateUserProfile) {
+          await updateUserProfile(updated);
+        }
+      }
+      showToast('Profile and security preferences updated successfully!', 'safe');
+    } catch (err) {
+      showToast('Failed to update profile: ' + (err?.message || 'Error saving changes'), 'danger');
     }
-    showToast('Profile and security preferences updated successfully!', 'safe');
   };
 
   const handleResetDemoData = () => {

@@ -7,6 +7,8 @@
  * Supabase Auth, AWS Cognito, or an enterprise OIDC/OAuth2 server.
  */
 
+import { databaseService } from './databaseService';
+
 const AUTH_USERS_KEY = 'nivarya_auth_users';
 const AUTH_SESSION_KEY = 'nivarya_auth_session';
 
@@ -229,13 +231,19 @@ export const authService = {
       updatedRecord = users[index];
     }
     const currentSession = this.getCurrentUser();
+    let updatedSession = null;
     if (currentSession && currentSession.id === userId) {
-      const updatedSession = { ...currentSession, ...profileUpdates };
+      updatedSession = { ...currentSession, ...profileUpdates };
       localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedSession));
       window.dispatchEvent(new Event('storage'));
-      return updatedSession;
     }
-    return updatedRecord;
+    // Asynchronously synchronize with database architecture
+    try {
+      databaseService.upsertUserProfile({ id: userId, ...(updatedSession || updatedRecord || profileUpdates) });
+    } catch (e) {
+      console.warn('Database sync error in updateUserProfile:', e);
+    }
+    return updatedSession || updatedRecord;
   },
 
   /**
@@ -376,6 +384,13 @@ export const authService = {
 
     users.push(newUser);
     localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
+
+    // Save to real database architecture
+    try {
+      await databaseService.upsertUserProfile(newUser);
+    } catch (e) {
+      console.warn('Database user sync failed:', e);
+    }
 
     const { passwordHash: _, ...safeUser } = newUser;
     const sessionUser = {

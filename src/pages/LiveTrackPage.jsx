@@ -63,6 +63,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   })() : null;
 
   const sessionUserName = savedSession?.userName || userProfile?.name || 'Nivarya Member';
+  const userName = sessionUserName;
   const userPhone = userProfile?.phone || '';
   const cleanPhone = userPhone.replace(/[^0-9]/g, '');
   const firstName = sessionUserName.split(' ')[0] || 'Member';
@@ -508,25 +509,33 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-            <a 
-              href={`tel:${userPhone}`}
-              className="btn btn-safe"
-              style={{ justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px' }}
-            >
-              <PhoneCall size={16} />
-              <span>Call {userName} ({userPhone})</span>
-            </a>
+            {userPhone ? (
+              <a 
+                href={`tel:${userPhone}`}
+                className="btn btn-safe"
+                style={{ justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px' }}
+              >
+                <PhoneCall size={16} />
+                <span>Call {userName} ({userPhone})</span>
+              </a>
+            ) : null}
 
-            <a 
-              href={`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`Hi ${userName}, I am tracking your live location on Nivarya. Please let me know you are safe!`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary"
-              style={{ justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#25D366', color: '#FFFFFF', borderColor: '#25D366', padding: '12px' }}
-            >
-              <MessageSquare size={16} />
-              <span>WhatsApp Message</span>
-            </a>
+            {cleanPhone ? (
+              <a 
+                href={`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`Hi ${userName}, I am tracking your live location on Nivarya. Please let me know you are safe!`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+                style={{ justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#25D366', color: '#FFFFFF', borderColor: '#25D366', padding: '12px' }}
+              >
+                <MessageSquare size={16} />
+                <span>WhatsApp Message</span>
+              </a>
+            ) : (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '8px' }}>
+                Direct phone number not published for this tracking beacon.
+              </div>
+            )}
           </div>
 
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
@@ -574,7 +583,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
               Emergency Medical & Health Alert
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              Blood Group: <strong style={{ color: '#FFFFFF' }}>{userProfile.bloodGroup || 'O+ Positive'}</strong> • Notes: <strong style={{ color: '#FFFFFF' }}>{userProfile.emergencyNotes || 'None specified'}</strong>
+              Blood Group: <strong style={{ color: '#FFFFFF' }}>{userProfile?.bloodGroup || 'Not Specified'}</strong> • Notes: <strong style={{ color: '#FFFFFF' }}>{userProfile?.emergencyNotes || 'None specified'}</strong>
             </div>
           </div>
         </div>

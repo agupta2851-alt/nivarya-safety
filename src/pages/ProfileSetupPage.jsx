@@ -30,6 +30,7 @@ export default function ProfileSetupPage() {
     userProfile, 
     setUserProfile, 
     setContacts,
+    saveProfile,
     locationState, 
     requestGpsLocation, 
     setManualLocation, 
@@ -48,8 +49,8 @@ export default function ProfileSetupPage() {
     emergencyContactName: currentUser?.emergencyContact?.name || '',
     emergencyContactPhone: currentUser?.emergencyContact?.phone || '',
     emergencyContactRelation: currentUser?.emergencyContact?.relation || 'Parent',
-    safetyPin: userProfile?.safetyPin || '1234',
-    bloodGroup: userProfile?.bloodGroup || 'O+ Positive',
+    safetyPin: userProfile?.safetyPin || '',
+    bloodGroup: userProfile?.bloodGroup || '',
     emergencyNotes: userProfile?.emergencyNotes || ''
   });
 
@@ -159,65 +160,43 @@ export default function ProfileSetupPage() {
       const cleanEmail = formData.email.trim().toLowerCase();
       const cleanEmergencyPhone = normalizePhoneNumber(formData.emergencyContactPhone);
 
-      // 1. Update location in AppContext
-      if (formData.city || formData.location) {
-        setManualLocation({
-          city: formData.city.trim(),
-          address: formData.location.trim()
-        });
-      }
-
-      // 2. Setup user's primary emergency contact
-      const primaryContact = {
-        id: `cnt-${Date.now()}`,
-        name: formData.emergencyContactName.trim(),
-        phone: cleanEmergencyPhone,
-        relation: formData.emergencyContactRelation,
-        isPrimary: true,
-        priority: 1,
-        avatarColor: '#6366F1'
-      };
-
-      const updatedContacts = [primaryContact];
-      setContacts(updatedContacts);
-      localStorage.setItem('nivarya_contacts', JSON.stringify(updatedContacts));
-
-      // 3. Prepare full profile data
-      const profileUpdates = {
+      const profilePayload = {
         name: formData.name.trim(),
         email: cleanEmail,
         phone: cleanPhone,
         age: formData.age ? String(formData.age).trim() : '',
         city: formData.city.trim(),
         location: formData.location.trim(),
+        address: formData.location.trim(),
+        coords: locationState?.coords || null,
         safetyPin: formData.safetyPin.trim(),
-        bloodGroup: formData.bloodGroup || 'O+ Positive',
+        bloodGroup: formData.bloodGroup || '',
         emergencyNotes: formData.emergencyNotes.trim(),
-        isProfileComplete: true,
-        emergencyContact: {
-          name: formData.emergencyContactName.trim(),
-          phone: cleanEmergencyPhone,
-          relation: formData.emergencyContactRelation
-        },
-        contacts: updatedContacts
+        emergencyContactName: formData.emergencyContactName.trim(),
+        emergencyContactPhone: cleanEmergencyPhone,
+        emergencyContactRelation: formData.emergencyContactRelation,
+        isProfileComplete: true
       };
 
-      // 4. Update Auth context & users database
-      if (currentUser?.id) {
-        await updateUserProfile(profileUpdates);
+      if (typeof saveProfile === 'function') {
+        await saveProfile(profilePayload);
+      } else {
+        // Fallback for safety
+        if (currentUser?.id && updateUserProfile) {
+          await updateUserProfile(profilePayload);
+        }
+        setUserProfile(prev => ({
+          ...prev,
+          ...profilePayload
+        }));
       }
-
-      // 5. Update AppContext user profile state
-      setUserProfile(prev => ({
-        ...prev,
-        ...profileUpdates
-      }));
 
       showToast(`Welcome, ${formData.name.trim()}! Your safety profile is ready.`, 'safe');
       setCurrentPage('dashboard');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      showToast('Failed to save profile: ' + (err.message || 'Unknown error'), 'danger');
+      console.error('Failed to save profile:', err);
+      showToast('Failed to save profile: ' + (err?.message || 'An unexpected error occurred. Please verify your details.'), 'danger');
     } finally {
       setIsSubmitting(false);
     }
@@ -606,6 +585,7 @@ export default function ProfileSetupPage() {
                 value={formData.bloodGroup}
                 onChange={handleChange}
               >
+                <option value="">Select Blood Group (Optional)</option>
                 <option value="A+ Positive">A+ Positive</option>
                 <option value="A- Negative">A- Negative</option>
                 <option value="B+ Positive">B+ Positive</option>

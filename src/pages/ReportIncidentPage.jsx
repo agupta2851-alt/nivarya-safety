@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export default function ReportIncidentPage() {
-  const { addIncident, setCurrentPage, showToast, t } = useApp();
+  const { addIncident, setCurrentPage, showToast, t, locationState, requestGpsLocation } = useApp();
 
   const categories = [
     'Harassment',
@@ -45,9 +45,26 @@ export default function ReportIncidentPage() {
     }
   };
 
-  const handleUseCurrentLocation = () => {
-    setLocation('Near University North Circle, Sector 4');
-    showToast('Applied simulated GPS location', 'info');
+  const handleUseCurrentLocation = async () => {
+    if (locationState?.coords) {
+      setLocation(`${locationState.coords.lat.toFixed(4)}°N, ${locationState.coords.lng.toFixed(4)}°E (${locationState.address || locationState.city || 'GPS Location'})`);
+      showToast('Applied active GPS coordinates', 'safe');
+      return;
+    }
+    try {
+      const res = await requestGpsLocation();
+      if (res?.coords) {
+        setLocation(`${res.coords.lat.toFixed(4)}°N, ${res.coords.lng.toFixed(4)}°E`);
+        showToast('Real device GPS locked & applied', 'safe');
+      }
+    } catch (e) {
+      if (locationState?.address || locationState?.city) {
+        setLocation(locationState.address || locationState.city);
+        showToast('Applied location preference', 'info');
+      } else {
+        showToast('GPS permission required. Please enter location manually.', 'info');
+      }
+    }
   };
 
   const handleSubmit = (e) => {

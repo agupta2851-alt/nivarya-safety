@@ -13,7 +13,7 @@ export function AuthProvider({ children }) {
   // Sync state if another tab modifies storage
   useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === 'nivarya_auth_session') {
+      if (!e.key || e.key === 'nivarya_auth_session') {
         setCurrentUser(authService.getCurrentUser());
       }
     };
@@ -117,6 +117,29 @@ export function AuthProvider({ children }) {
     return updated;
   };
 
+  const saveProfile = async (profileData) => {
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+      if (!currentUser?.id) {
+        throw new Error('User is not authenticated. Please log in first.');
+      }
+      const updated = authService.updateUserProfile(currentUser.id, {
+        ...profileData,
+        isProfileComplete: true
+      });
+      if (updated) {
+        setCurrentUser(updated);
+      }
+      return updated;
+    } catch (err) {
+      setAuthError(err.message || 'Failed to save profile');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -131,7 +154,8 @@ export function AuthProvider({ children }) {
         quickDemoLogin,
         logout,
         resetPassword,
-        updateUserProfile
+        updateUserProfile,
+        saveProfile
       }}
     >
       {children}

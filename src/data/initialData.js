@@ -237,66 +237,14 @@ export function getHotspotsForCoordinates(coords) {
 export const mapHotspots = [];
 export const extendedMapHotspots = [];
 
-export const initialCommunityIncidents = [
-  {
-    id: "inc-101",
-    category: "Poor lighting",
-    location: "Behind Metro Station Transit Plaza (Exit 4 Lane)",
-    date: "2026-09-03",
-    time: "21:45",
-    description: "Streetlights have been out for consecutive days on the pedestrian walkway. Extremely dark and isolated after 9 PM.",
-    authorBadge: "Verified Student",
-    upvotes: 38,
-    flagged: false,
-    severity: "Medium",
-    status: "Forwarded to Municipal Corp"
-  },
-  {
-    id: "inc-102",
-    category: "Suspicious activity",
-    location: "Transit Overbridge Walkway",
-    date: "2026-09-02",
-    time: "22:15",
-    description: "Unidentified individuals blocking the stairway. Advised to take the front road with active shoplights.",
-    authorBadge: "Resident",
-    upvotes: 54,
-    flagged: false,
-    severity: "High",
-    status: "Police Night Patrol Alerted"
-  },
-  {
-    id: "inc-103",
-    category: "Public transport issue",
-    location: "Central Bus Interchange Stand",
-    date: "2026-09-03",
-    time: "19:30",
-    description: "Late evening buses skipping this stop frequently, leaving female commuters stranded.",
-    authorBadge: "Working Professional",
-    upvotes: 21,
-    flagged: false,
-    severity: "Low",
-    status: "Under Review"
-  },
-  {
-    id: "inc-104",
-    category: "Harassment",
-    location: "Subway Underpass near Commercial Complex",
-    date: "2026-09-01",
-    time: "20:00",
-    description: "Bikers slowing down and stalking commuters. Pink Patrol unit was informed.",
-    authorBadge: "Local Resident",
-    upvotes: 62,
-    flagged: false,
-    severity: "High",
-    status: "CCTV Footage Requested"
-  }
-];
+// Start with empty arrays - real user activity populates database
+export const initialCommunityIncidents = [];
 
 export const initialSafetyStats = [
-  { label: "Proactive Journeys Monitored", value: "142,500+", change: "+24% this month" },
-  { label: "Alert Cascade Speed", value: "< 2.8 sec", change: "Instant trigger" },
-  { label: "Verified Safe Community Hubs", value: "1,840+", change: "Pan-India coverage" },
-  { label: "Community Hazard Verifications", value: "99.4%", change: "Peer & patrol checked" }
+  { label: "Active Journeys Guarded", value: "0", change: "Real-time updates", key: "activeJourneys" },
+  { label: "Completed Safe Journeys", value: "0", change: "Live database", key: "completedJourneys" },
+  { label: "Pan-India Safety Hubs", value: "7", change: "24/7 National Helplines", key: "verifiedHubs" },
+  { label: "Community Safety Reports", value: "0", change: "Peer vigilance reports", key: "safetyReports" }
 ];
 
 export const sampleBotResponses = {
@@ -587,45 +535,5 @@ export const nearbyRespondersData = [
   }
 ];
 
-export const initialSafetyHistory = [
-  {
-    id: 'hist-1',
-    type: 'journey',
-    title: 'Transit Corridor → Destination',
-    date: '2026-09-06',
-    time: '21:30',
-    location: 'Metro Transit Corridor',
-    details: '28-minute trip completed via Metro. 3 automatic check-ins verified.',
-    status: 'Completed Safely'
-  },
-  {
-    id: 'hist-2',
-    type: 'checkin',
-    title: 'Automated Safe Check-in',
-    date: '2026-09-06',
-    time: '21:45',
-    location: 'Near Metro Gate 2',
-    details: 'Self-confirmed safety ping sent to primary trusted contacts.',
-    status: 'Verified'
-  },
-  {
-    id: 'hist-3',
-    type: 'incident',
-    title: 'Community Hazard Report: Non-functional Lights',
-    date: '2026-09-04',
-    time: '20:15',
-    location: 'Transit Walkway',
-    details: 'Submitted hazard report. 38 peer upvotes received.',
-    status: 'Forwarded to Authority'
-  },
-  {
-    id: 'hist-4',
-    type: 'sos',
-    title: 'SOS Drill & Simulation Test',
-    date: '2026-09-01',
-    time: '18:00',
-    location: 'Safe Location',
-    details: 'Simulated 3-second alert cascade and disarm PIN verification tested successfully.',
-    status: 'Drill Completed'
-  }
-];
+// Real user actions will dynamically populate the audit history
+export const initialSafetyHistory = [];

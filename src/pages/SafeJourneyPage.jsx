@@ -43,9 +43,9 @@ export default function SafeJourneyPage() {
   } = useApp();
 
   // Form states when setting up journey
-  const [startPoint, setStartPoint] = useState(activeJourney.startPoint || 'University North Campus');
-  const [destination, setDestination] = useState(activeJourney.destination || 'Sector 14 Residential Hostel');
-  const [selectedMode, setSelectedMode] = useState(activeJourney.mode || 'metro');
+  const [startPoint, setStartPoint] = useState(activeJourney.startPoint || '');
+  const [destination, setDestination] = useState(activeJourney.destination || '');
+  const [selectedMode, setSelectedMode] = useState(activeJourney.mode || 'cab');
   const [etaInput, setEtaInput] = useState(25);
   const [checkinInterval, setCheckinInterval] = useState(10);
   const [enableCabMonitor, setEnableCabMonitor] = useState(true);
@@ -99,7 +99,7 @@ export default function SafeJourneyPage() {
         </p>
       </div>
 
-      {/* Prototype Simulated Label */}
+      {/* Live GPS Route Monitoring Status */}
       <div style={{
         background: 'rgba(99, 102, 241, 0.1)',
         border: '1px solid rgba(99, 102, 241, 0.25)',
@@ -117,8 +117,8 @@ export default function SafeJourneyPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Info size={18} color="#818CF8" style={{ flexShrink: 0 }} />
           <span>
-            <strong>Simulated GPS & Route Monitoring: </strong> 
-            Live tracking link generates encrypted real-time coordinate broadcasts to selected trusted contacts.
+            <strong>Live GPS & Route Monitoring: </strong> 
+            Live tracking link generates real-time coordinate broadcasts to selected trusted contacts.
           </span>
         </div>
 

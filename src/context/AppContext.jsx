@@ -8,6 +8,8 @@ import {
 } from '../data/initialData';
 import { playCountdownBeep, startEmergencySiren, stopEmergencySiren } from '../utils/audio';
 import { generateTrackingId } from '../utils/tracking';
+import { authService, normalizePhoneNumber } from '../services/authService';
+import { databaseService } from '../services/databaseService';
 
 const AppContext = createContext();
 
@@ -123,6 +125,41 @@ export function AppProvider({ children }) {
       status: 'Mode Active'
     });
   };
+
+  // Real Dynamic Platform Statistics (from real database records)
+  const [platformStats, setPlatformStats] = useState({
+    totalUsers: 0,
+    activeJourneys: 0,
+    completedJourneys: 0,
+    sosEvents: 0,
+    safetyReports: 0,
+    verifiedHubs: 7,
+    activeUsers: 0
+  });
+
+  const refreshPlatformStats = async () => {
+    try {
+      const stats = await databaseService.getPublicStatistics();
+      if (stats) setPlatformStats(stats);
+    } catch (e) {
+      console.warn('Failed to load dynamic statistics:', e);
+    }
+  };
+
+  useEffect(() => {
+    refreshPlatformStats();
+    const unsub = databaseService.subscribeToRealtimeUpdates((evt) => {
+      refreshPlatformStats();
+      if (evt?.table === 'safety_reports') {
+        databaseService.getSafetyReports().then(reps => {
+          if (reps) setIncidents(reps);
+        });
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
 
   // User Profile & Settings
   const [userProfile, setUserProfile] = useState(() => {
@@ -409,20 +446,28 @@ export function AppProvider({ children }) {
           };
           setLocationState(newState);
           localStorage.setItem('nivarya_location_state', JSON.stringify(newState));
-          // Persist to user record
+          // Persist to database architecture
           try {
             const sessionRaw = localStorage.getItem('nivarya_auth_session');
-            if (sessionRaw) {
-              const u = JSON.parse(sessionRaw);
-              if (u && u.id) {
-                const usersRaw = localStorage.getItem('nivarya_auth_users');
-                if (usersRaw) {
-                  const users = JSON.parse(usersRaw);
-                  const idx = users.findIndex(usr => usr.id === u.id);
-                  if (idx !== -1) {
-                    users[idx].locationState = newState;
-                    localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
-                  }
+            const u = sessionRaw ? JSON.parse(sessionRaw) : null;
+            databaseService.recordLiveLocation({
+              userId: u?.id || null,
+              journeyId: activeJourney?.id || null,
+              coords: newCoords,
+              source: 'gps',
+              address: newState.address,
+              city: newState.city,
+              batteryLevel: batteryLevel,
+              trackingToken: currentTrackingId
+            });
+            if (u && u.id) {
+              const usersRaw = localStorage.getItem('nivarya_auth_users');
+              if (usersRaw) {
+                const users = JSON.parse(usersRaw);
+                const idx = users.findIndex(usr => usr.id === u.id);
+                if (idx !== -1) {
+                  users[idx].locationState = newState;
+                  localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
                 }
               }
             }
@@ -507,6 +552,185 @@ export function AppProvider({ children }) {
     lastUpdated: locationState.lastUpdated || null
   };
 
+  /**
+   * Synchronizes active user profile, contacts, and location state from an authenticated user record.
+   */
+  const syncUserProfileFromSession = (user) => {
+    if (!user) return;
+    setUserProfile(prev => ({
+      ...prev,
+      name: user.name || prev.name || '',
+      role: user.role || prev.role || 'Verified Member',
+      phone: user.phone || prev.phone || '',
+      email: user.email || prev.email || '',
+      age: user.age || prev.age || '',
+      city: user.city || prev.city || '',
+      location: user.location || prev.location || '',
+      bloodGroup: user.bloodGroup || prev.bloodGroup || '',
+      emergencyNotes: user.emergencyNotes || prev.emergencyNotes || '',
+      safetyPin: user.safetyPin || prev.safetyPin || '1234',
+      isProfileComplete: Boolean(user.isProfileComplete)
+    }));
+
+    if (Array.isArray(user.contacts) && user.contacts.length > 0) {
+      setContacts(user.contacts);
+      try {
+        localStorage.setItem('nivarya_contacts', JSON.stringify(user.contacts));
+      } catch (e) { /* ignore */ }
+    }
+
+    if (user.locationState) {
+      setLocationState(user.locationState);
+      try {
+        localStorage.setItem('nivarya_location_state', JSON.stringify(user.locationState));
+      } catch (e) { /* ignore */ }
+    }
+  };
+
+  /**
+   * Unified saveProfile method:
+   * - Accepts real user profile data
+   * - Saves profile data to state & storage
+   * - Updates contacts if emergency contact details are supplied
+   * - Updates location state if GPS coords or manual city/address provided
+   * - Marks profile as complete
+   * - Updates user in auth session & registered users database
+   */
+  const saveProfile = async (profileData) => {
+    if (!profileData || typeof profileData !== 'object') {
+      throw new Error('Invalid profile data provided.');
+    }
+
+    const cleanName = profileData.name ? profileData.name.trim() : (userProfile.name ? userProfile.name.trim() : '');
+    if (!cleanName) {
+      throw new Error('Full Name is required.');
+    }
+
+    const cleanPhone = profileData.phone ? normalizePhoneNumber(profileData.phone) : (userProfile.phone || '');
+    const cleanEmail = profileData.email ? profileData.email.trim().toLowerCase() : (userProfile.email || '');
+
+    // 1. Process and save contacts
+    let updatedContacts = [...contacts];
+    if (Array.isArray(profileData.contacts)) {
+      updatedContacts = profileData.contacts;
+    } else if (profileData.emergencyContactName && profileData.emergencyContactPhone) {
+      const cleanEmergencyPhone = normalizePhoneNumber(profileData.emergencyContactPhone);
+      const existingIdx = updatedContacts.findIndex(c => c.isPrimary);
+      const primaryContact = {
+        id: existingIdx !== -1 ? updatedContacts[existingIdx].id : `cnt-${Date.now()}`,
+        name: profileData.emergencyContactName.trim(),
+        phone: cleanEmergencyPhone,
+        relation: profileData.emergencyContactRelation || 'Parent',
+        isPrimary: true,
+        priority: 1,
+        avatarColor: '#6366F1'
+      };
+      if (existingIdx !== -1) {
+        updatedContacts[existingIdx] = primaryContact;
+      } else {
+        updatedContacts = [primaryContact, ...updatedContacts];
+      }
+    }
+    setContacts(updatedContacts);
+    try {
+      localStorage.setItem('nivarya_contacts', JSON.stringify(updatedContacts));
+    } catch (e) { /* ignore */ }
+
+    // 2. Process and save location
+    let updatedLoc = { ...locationState };
+    if (profileData.coords) {
+      updatedLoc = {
+        coords: profileData.coords,
+        city: profileData.city !== undefined ? profileData.city.trim() : locationState.city,
+        address: profileData.address !== undefined ? profileData.address.trim() : (profileData.location !== undefined ? profileData.location.trim() : locationState.address),
+        status: 'active',
+        statusMessage: 'Device GPS locked',
+        source: 'gps',
+        lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setLocationState(updatedLoc);
+      try {
+        localStorage.setItem('nivarya_location_state', JSON.stringify(updatedLoc));
+      } catch (e) { /* ignore */ }
+    } else if (profileData.city || profileData.location || profileData.address) {
+      const city = profileData.city !== undefined ? profileData.city.trim() : locationState.city;
+      const addr = profileData.address !== undefined ? profileData.address.trim() : (profileData.location !== undefined ? profileData.location.trim() : locationState.address);
+      updatedLoc = {
+        coords: locationState.coords,
+        city,
+        address: addr,
+        status: locationState.coords ? locationState.status : 'manual',
+        statusMessage: locationState.coords ? locationState.statusMessage : `Manual: ${city || addr}`,
+        source: locationState.coords ? locationState.source : 'manual',
+        lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setLocationState(updatedLoc);
+      try {
+        localStorage.setItem('nivarya_location_state', JSON.stringify(updatedLoc));
+      } catch (e) { /* ignore */ }
+    }
+
+    // 3. Process and save userProfile
+    const updatedProfile = {
+      ...userProfile,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      age: profileData.age !== undefined ? String(profileData.age).trim() : (userProfile.age || ''),
+      city: profileData.city !== undefined ? profileData.city.trim() : (userProfile.city || ''),
+      location: profileData.location !== undefined ? profileData.location.trim() : (profileData.address !== undefined ? profileData.address.trim() : (userProfile.location || '')),
+      manualLocation: profileData.manualLocation !== undefined ? profileData.manualLocation.trim() : (userProfile.manualLocation || ''),
+      safetyPin: profileData.safetyPin !== undefined ? profileData.safetyPin.trim() : (userProfile.safetyPin || '1234'),
+      bloodGroup: profileData.bloodGroup !== undefined ? profileData.bloodGroup : (userProfile.bloodGroup || ''),
+      emergencyNotes: profileData.emergencyNotes !== undefined ? profileData.emergencyNotes.trim() : (profileData.medicalNotes !== undefined ? profileData.medicalNotes.trim() : (userProfile.emergencyNotes || '')),
+      sosDelay: profileData.sosDelay !== undefined ? Number(profileData.sosDelay) : (userProfile.sosDelay ?? 3),
+      autoAudioRecord: profileData.autoAudioRecord !== undefined ? Boolean(profileData.autoAudioRecord) : (userProfile.autoAudioRecord ?? true),
+      highAccuracyGps: profileData.highAccuracyGps !== undefined ? Boolean(profileData.highAccuracyGps) : (userProfile.highAccuracyGps ?? true),
+      isProfileComplete: true
+    };
+    setUserProfile(updatedProfile);
+    try {
+      localStorage.setItem('nivarya_profile', JSON.stringify(updatedProfile));
+    } catch (e) { /* ignore */ }
+
+    // 4. Persist to logged-in user database & auth session
+    try {
+      const sessionUser = authService.getCurrentUser();
+      const uId = sessionUser?.id || updatedProfile.id || `usr-${Date.now()}`;
+      const emergencyContactObj = (profileData.emergencyContactName && profileData.emergencyContactPhone) ? {
+        name: profileData.emergencyContactName.trim(),
+        phone: normalizePhoneNumber(profileData.emergencyContactPhone),
+        relation: profileData.emergencyContactRelation || 'Parent'
+      } : (profileData.emergencyContact || sessionUser?.emergencyContact || null);
+
+      if (sessionUser && sessionUser.id) {
+        authService.updateUserProfile(sessionUser.id, {
+          ...updatedProfile,
+          emergencyContact: emergencyContactObj,
+          contacts: updatedContacts,
+          locationState: updatedLoc,
+          isProfileComplete: true
+        });
+      }
+
+      await databaseService.upsertUserProfile({
+        id: uId,
+        ...updatedProfile,
+        isProfileComplete: true
+      });
+      refreshPlatformStats();
+    } catch (authErr) {
+      console.warn('Failed to update auth session in saveProfile:', authErr);
+    }
+
+    return {
+      success: true,
+      profile: updatedProfile,
+      contacts: updatedContacts,
+      locationState: updatedLoc
+    };
+  };
+
   const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [sharingDuration, setSharingDuration] = useState('30m'); // '15m' | '30m' | '1h' | 'journey'
   const [shareToken, setShareToken] = useState(() => initialRoute.trackingId || generateTrackingId());
@@ -564,40 +788,53 @@ export function AppProvider({ children }) {
   });
 
   useEffect(() => {
+    // Initial fetch of real safety reports from database architecture
+    databaseService.getSafetyReports().then(reps => {
+      if (Array.isArray(reps)) {
+        setIncidents(reps);
+        localStorage.setItem('nivarya_incidents', JSON.stringify(reps));
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('nivarya_incidents', JSON.stringify(incidents));
   }, [incidents]);
 
-  const addIncident = (newIncident) => {
-    const incidentWithId = {
-      ...newIncident,
-      id: `inc-${Date.now()}`,
-      upvotes: 1,
-      flagged: false,
-      status: 'Community Verified',
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setIncidents(prev => [incidentWithId, ...prev]);
-    showToast('Report submitted and shared with community radar!', 'safe');
-    addSafetyHistory({
-      type: 'incident',
-      title: `Incident Reported: ${newIncident.category}`,
-      details: `Logged at ${newIncident.location}. Community alert active.`,
-      status: 'Under Review'
-    });
+  const addIncident = async (newIncident) => {
+    try {
+      const saved = await databaseService.submitSafetyReport({
+        ...newIncident,
+        userId: userProfile?.id || null,
+        coords: locationState?.coords || null
+      });
+      setIncidents(prev => [saved, ...prev]);
+      showToast('Report submitted and shared with community radar!', 'safe');
+      addSafetyHistory({
+        type: 'incident',
+        title: `Incident Reported: ${newIncident.category}`,
+        details: `Logged at ${newIncident.location}. Community alert active.`,
+        status: 'Under Review'
+      });
+      refreshPlatformStats();
+    } catch (e) {
+      console.warn('Database incident submit failed:', e);
+    }
   };
 
-  const upvoteIncident = (id) => {
+  const upvoteIncident = async (id) => {
+    await databaseService.upvoteSafetyReport(id);
     setIncidents(prev => prev.map(item => {
       if (item.id === id) {
-        return { ...item, upvotes: item.upvotes + 1 };
+        return { ...item, upvotes: (item.upvotes || 0) + 1 };
       }
       return item;
     }));
     showToast('Marked as helpful. Thank you for keeping others safe.', 'info');
   };
 
-  const flagIncident = (id) => {
+  const flagIncident = async (id) => {
+    await databaseService.flagSafetyReport(id);
     setIncidents(prev => prev.map(item => {
       if (item.id === id) {
         return { ...item, flagged: true };
@@ -605,6 +842,7 @@ export function AppProvider({ children }) {
       return item;
     }));
     showToast('Report flagged for review by community moderators', 'info');
+    refreshPlatformStats();
   };
 
   // Safe Journey State
@@ -615,12 +853,12 @@ export function AppProvider({ children }) {
     }
     return {
       isActive: false,
-      startPoint: 'University North Campus',
-      destination: 'Sector 14 Residential Hostel',
-      mode: 'metro',
+      startPoint: '',
+      destination: '',
+      mode: 'cab',
       progress: 0,
       startTime: null,
-      etaMinutes: 28,
+      etaMinutes: 25,
       checkinsCount: 0,
       lastCheckinTime: null,
       isPaused: false
@@ -646,15 +884,18 @@ export function AppProvider({ children }) {
     return () => clearInterval(interval);
   }, [activeJourney.isActive, activeJourney.isPaused]);
 
-  const startJourney = (routeDetails) => {
+  const startJourney = async (routeDetails) => {
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const journeyToken = generateTrackingId();
     setShareToken(journeyToken);
     setCurrentTrackingId(journeyToken);
-    setActiveJourney({
+
+    const journeyId = `jrn-${Date.now()}`;
+    const journeyObj = {
+      id: journeyId,
       isActive: true,
-      startPoint: routeDetails.startPoint || 'University Campus Gate',
-      destination: routeDetails.destination || 'Hostel Sector 14',
+      startPoint: routeDetails.startPoint || 'My Location',
+      destination: routeDetails.destination || 'Destination',
       mode: routeDetails.mode || 'cab',
       progress: 0,
       startTime: new Date().toISOString(),
@@ -662,13 +903,30 @@ export function AppProvider({ children }) {
       checkinsCount: 0,
       lastCheckinTime: nowTime,
       isPaused: false
-    });
+    };
+
+    setActiveJourney(journeyObj);
     setIsSharingLocation(true);
     setSharingDuration('journey');
+
+    try {
+      await databaseService.createJourney({
+        id: journeyId,
+        userId: userProfile?.id || null,
+        startPoint: journeyObj.startPoint,
+        destination: journeyObj.destination,
+        mode: journeyObj.mode,
+        etaMinutes: journeyObj.etaMinutes
+      });
+      refreshPlatformStats();
+    } catch (e) {
+      console.warn('Failed to record journey in database:', e);
+    }
+
     showToast('Safe Journey activated! Contacts notified of live route.', 'safe');
     addSafetyHistory({
       type: 'journey',
-      title: `Journey Started: ${routeDetails.startPoint || 'Campus'} → ${routeDetails.destination || 'Hostel'}`,
+      title: `Journey Started: ${routeDetails.startPoint || 'Origin'} → ${routeDetails.destination || 'Destination'}`,
       details: `Mode: ${routeDetails.mode || 'Cab'} • ETA: ${routeDetails.etaMinutes || 25} mins. Live GPS active.`,
       status: 'In Transit'
     });
@@ -676,11 +934,21 @@ export function AppProvider({ children }) {
 
   const performCheckin = () => {
     const checkinTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setActiveJourney(prev => ({
-      ...prev,
-      checkinsCount: prev.checkinsCount + 1,
-      lastCheckinTime: checkinTime
-    }));
+    setActiveJourney(prev => {
+      const nextCount = prev.checkinsCount + 1;
+      if (prev.id) {
+        databaseService.updateJourney(prev.id, {
+          checkins_count: nextCount,
+          last_checkin_time: new Date().toISOString(),
+          progress: prev.progress
+        }).catch(() => {});
+      }
+      return {
+        ...prev,
+        checkinsCount: nextCount,
+        lastCheckinTime: checkinTime
+      };
+    });
     showToast(t.journey.checkinSuccess || "Safe check-in logged and sent to trusted contacts!", 'safe');
     addSafetyHistory({
       type: 'checkin',
@@ -690,7 +958,8 @@ export function AppProvider({ children }) {
     });
   };
 
-  const endJourney = () => {
+  const endJourney = async () => {
+    const jId = activeJourney.id;
     setActiveJourney(prev => ({
       ...prev,
       isActive: false,
@@ -698,11 +967,19 @@ export function AppProvider({ children }) {
       isPaused: false
     }));
     setIsSharingLocation(false);
+
+    try {
+      if (jId) await databaseService.completeJourney(jId);
+      refreshPlatformStats();
+    } catch (e) {
+      console.warn('Failed to complete journey in database:', e);
+    }
+
     showToast('Journey ended safely. Well done!', 'safe');
     addSafetyHistory({
       type: 'journey',
       title: 'Journey Completed Safely',
-      details: `Arrived safely at ${activeJourney.destination}. Automated tracking disengaged.`,
+      details: `Arrived safely at ${activeJourney.destination || 'Destination'}. Automated tracking disengaged.`,
       status: 'Completed Safely'
     });
   };
@@ -748,6 +1025,22 @@ export function AppProvider({ children }) {
       if (isSirenOn) {
         startEmergencySiren();
       }
+      // Record SOS event into database architecture
+      try {
+        databaseService.createSosEvent({
+          userId: userProfile?.id || null,
+          triggerType: 'button',
+          coords: currentCoordinates,
+          address: currentCoordinates.address,
+          timeline: [
+            { time: new Date().toLocaleTimeString(), title: 'One-Tap SOS Emergency Broadcast Activated', status: 'High Alert' },
+            { time: new Date().toLocaleTimeString(), title: `GPS Transmitted to ${selectedContactsForSos.length} Guardians`, status: 'Delivered' }
+          ]
+        }).then(() => refreshPlatformStats()).catch(() => {});
+      } catch (e) {
+        console.warn('Database SOS event record failed:', e);
+      }
+
       // Log emergency steps in timeline
       addTimelineEvent('Emergency Protocol ACTIVATED', 'High Alert');
       addTimelineEvent(`GPS Broadcast (${currentCoordinates.lat}, ${currentCoordinates.lng}) transmitted to ${selectedContactsForSos.length} trusted contacts`, 'Delivered');
@@ -762,7 +1055,7 @@ export function AppProvider({ children }) {
       addSafetyHistory({
         type: 'sos',
         title: 'Emergency SOS Broadcast Triggered',
-        details: `Simulated high-alert protocol engaged at ${currentCoordinates.address}.`,
+        details: `High-alert protocol engaged at ${currentCoordinates.address}.`,
         status: 'SOS Active'
       });
       return;
@@ -791,6 +1084,10 @@ export function AppProvider({ children }) {
       stopEmergencySiren();
       setSosPhase('idle');
       setIsSosModalOpen(false);
+
+      // Disarm event in database
+      databaseService.disarmSosEvent().then(() => refreshPlatformStats()).catch(() => {});
+
       showToast('Emergency SOS disarmed successfully. Safe status restored.', 'safe');
       addSafetyHistory({
         type: 'sos',
@@ -1125,10 +1422,21 @@ export function AppProvider({ children }) {
       ...item
     };
     setSafetyHistory(prev => [newEntry, ...prev]);
+
+    // Record to database architecture audit log
+    databaseService.recordUserActivity({
+      userId: userProfile?.id || null,
+      activityType: item.type || 'audit',
+      title: item.title,
+      details: item.details,
+      location: newEntry.location,
+      status: item.status
+    }).catch(() => {});
   };
 
   const clearSafetyHistory = () => {
     setSafetyHistory([]);
+    databaseService.clearUserActivityHistory(userProfile?.id || null).catch(() => {});
     showToast('Safety history cleared.', 'info');
   };
 
@@ -1214,6 +1522,10 @@ export function AppProvider({ children }) {
         changeLanguage,
         t,
 
+        // Real Dynamic Platform Statistics
+        platformStats,
+        refreshPlatformStats,
+
         // Safety Mode
         safetyMode,
         changeSafetyMode,
@@ -1221,9 +1533,12 @@ export function AppProvider({ children }) {
         // Profile & Settings
         userProfile,
         setUserProfile,
+        saveProfile,
+        syncUserProfileFromSession,
 
         // Trusted Contacts
         contacts,
+        setContacts,
         addContact,
         updateContact,
         deleteContact,
