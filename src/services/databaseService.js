@@ -412,11 +412,16 @@ export const databaseService = {
       start_point: journeyData.startPoint || journeyData.start_point || 'My Location',
       destination: journeyData.destination || 'Destination',
       mode: journeyData.mode || 'cab',
-      status: 'active',
-      progress: 0,
-      eta_minutes: Number(journeyData.etaMinutes || 25),
+      status: journeyData.status || 'active',
+      progress: journeyData.progress || 0,
+      eta_minutes: journeyData.etaMinutes != null ? Number(journeyData.etaMinutes) : null,
+      eta_display: journeyData.etaDisplay || 'ETA calculating...',
       checkins_count: 0,
       last_checkin_time: now,
+      start_coords: journeyData.startCoords || null,
+      current_coords: journeyData.currentCoords || null,
+      dest_coords: journeyData.destCoords || null,
+      distance_traveled_km: Number(journeyData.distanceTraveledKm || 0),
       started_at: now,
       completed_at: null
     };
@@ -486,10 +491,18 @@ export const databaseService = {
     });
   },
 
+  async cancelJourney(journeyId) {
+    const now = new Date().toISOString();
+    return this.updateJourney(journeyId, {
+      status: 'cancelled',
+      completed_at: now
+    });
+  },
+
   async getActiveJourney(userId) {
     if (isSupabaseConfigured() && supabase) {
       try {
-        let query = supabase.from('journeys').select('*').eq('status', 'active');
+        let query = supabase.from('journeys').select('*').in('status', ['active', 'paused', 'PAUSED/NO_MOVEMENT', 'ACTIVE']);
         if (userId) query = query.eq('user_id', userId);
         const { data, error } = await query.order('started_at', { ascending: false }).limit(1).maybeSingle();
         if (!error && data) return data;
@@ -499,7 +512,10 @@ export const databaseService = {
     }
 
     const journeys = localDb.readTable(STORAGE_KEYS.JOURNEYS, []);
-    return journeys.find(j => j.status === 'active' && (!userId || j.user_id === userId)) || null;
+    return journeys.find(j => {
+      const isAct = j.status === 'active' || j.status === 'ACTIVE' || j.status === 'paused' || j.status === 'PAUSED/NO_MOVEMENT';
+      return isAct && (!userId || j.user_id === userId);
+    }) || null;
   },
 
   // ----------------------------------------------------------------------------

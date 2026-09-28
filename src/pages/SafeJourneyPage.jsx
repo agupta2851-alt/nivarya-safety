@@ -14,26 +14,34 @@ import {
   AlertTriangle, 
   Play, 
   Pause, 
-  RotateCcw, 
+  XCircle, 
   ShieldCheck,
   Radio,
   ArrowRight,
   Info,
   Compass,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  Activity,
+  Check,
+  RefreshCw
 } from 'lucide-react';
+import { evaluateMilestones } from '../utils/geoUtils';
 
 export default function SafeJourneyPage() {
   const { 
     activeJourney, 
     startJourney, 
     performCheckin, 
+    pauseJourney,
+    resumeJourney,
+    cancelJourney,
     endJourney, 
-    setJourneyProgress, 
     triggerSos,
     showToast,
     currentCoordinates,
+    locationState,
+    requestGpsLocation,
     contacts,
     selectedContactsForJourney,
     toggleContactJourneySelection,
@@ -43,12 +51,15 @@ export default function SafeJourneyPage() {
   } = useApp();
 
   // Form states when setting up journey
-  const [startPoint, setStartPoint] = useState(activeJourney.startPoint || '');
+  const defaultStart = locationState?.coords
+    ? (locationState.address || 'Current GPS Location')
+    : (activeJourney.startPoint || '');
+  const [startPoint, setStartPoint] = useState(defaultStart);
   const [destination, setDestination] = useState(activeJourney.destination || '');
   const [selectedMode, setSelectedMode] = useState(activeJourney.mode || 'cab');
   const [etaInput, setEtaInput] = useState(25);
   const [checkinInterval, setCheckinInterval] = useState(10);
-  const [enableCabMonitor, setEnableCabMonitor] = useState(true);
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
 
   const modes = [
     { id: 'cab', label: t.journey.modes.cab, icon: Car },
@@ -59,12 +70,26 @@ export default function SafeJourneyPage() {
     { id: 'twoWheeler', label: t.journey.modes.twoWheeler, icon: Bike }
   ];
 
-  const handleStart = (e) => {
+  const handleStart = async (e) => {
     e.preventDefault();
     if (!startPoint.trim() || !destination.trim()) {
       showToast('Please specify both starting location and destination', 'danger');
       return;
     }
+
+    // Require real GPS permission
+    if (!locationState.coords || locationState.status !== 'granted') {
+      setIsRequestingLocation(true);
+      try {
+        await requestGpsLocation();
+      } catch (err) {
+        setIsRequestingLocation(false);
+        showToast('Location permission is required for live journey tracking.', 'danger');
+        return;
+      }
+      setIsRequestingLocation(false);
+    }
+
     startJourney({
       startPoint,
       destination,
@@ -73,20 +98,31 @@ export default function SafeJourneyPage() {
     });
   };
 
-  const checkpoints = [
-    { progress: 0, label: 'Departed' },
-    { progress: 25, label: 'Campus Gate' },
-    { progress: 50, label: 'Mid Transit' },
-    { progress: 75, label: 'Sector Ring' },
-    { progress: 100, label: 'Arrived' }
-  ];
+  const handleEnableGps = async () => {
+    setIsRequestingLocation(true);
+    try {
+      await requestGpsLocation();
+      showToast('Real satellite GPS fix established.', 'safe');
+    } catch (err) {
+      showToast('Location permission is required for live journey tracking.', 'danger');
+    } finally {
+      setIsRequestingLocation(false);
+    }
+  };
+
+  // Evaluate real milestones strictly from GPS metrics
+  const milestones = evaluateMilestones({
+    progress: activeJourney.progress || 0,
+    distanceTraveledKm: activeJourney.distanceTraveledKm || 0,
+    isArrived: activeJourney.status === 'ARRIVED'
+  });
 
   const ModeIcon = modes.find(m => m.id === (activeJourney.isActive ? activeJourney.mode : selectedMode))?.icon || Navigation;
 
   return (
     <div className="journey-container container animate-fade-in" style={{ paddingTop: '24px', paddingBottom: '60px' }}>
       {/* Header */}
-      <div className="section-header" style={{ marginBottom: '28px' }}>
+      <div className="section-header" style={{ marginBottom: '24px' }}>
         <span className="section-tag">
           <Navigation size={14} />
           <span>Active Journey Guard & Live GPS</span>
@@ -99,13 +135,50 @@ export default function SafeJourneyPage() {
         </p>
       </div>
 
+      {/* GPS Permission Warning Banner if Denied */}
+      {locationState.status === 'denied' && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '14px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={24} color="#EF4444" style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '0.95rem' }}>
+                Location permission is required for live journey tracking.
+              </div>
+              <div style={{ color: '#FCA5A5', fontSize: '0.82rem', marginTop: '3px' }}>
+                Real device GPS is mandatory to measure physical movement and calculate travel progress honestly. No simulated coordinates are ever substituted.
+              </div>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            className="btn btn-primary btn-sm"
+            onClick={handleEnableGps}
+            disabled={isRequestingLocation}
+          >
+            <RefreshCw size={14} className={isRequestingLocation ? 'spin' : ''} />
+            <span>{isRequestingLocation ? 'Requesting GPS...' : 'Enable Device GPS'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Live GPS Route Monitoring Status */}
       <div style={{
         background: 'rgba(99, 102, 241, 0.1)',
         border: '1px solid rgba(99, 102, 241, 0.25)',
         borderRadius: '12px',
         padding: '12px 18px',
-        marginBottom: '28px',
+        marginBottom: '24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -117,8 +190,8 @@ export default function SafeJourneyPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Info size={18} color="#818CF8" style={{ flexShrink: 0 }} />
           <span>
-            <strong>Live GPS & Route Monitoring: </strong> 
-            Live tracking link generates real-time coordinate broadcasts to selected trusted contacts.
+            <strong>Real GPS Movement Guard: </strong> 
+            Progress updates solely on actual satellite physical movement. Share your live tracking link with trusted contacts so they can view your live route.
           </span>
         </div>
 
@@ -139,7 +212,7 @@ export default function SafeJourneyPage() {
             Plan & Guard Your Route
           </h2>
           <p style={{ fontSize: '0.88rem', color: '#94A3B8', marginBottom: '24px' }}>
-            Share your live route checkpoints with your trusted contacts network.
+            Real GPS tracking starts when you depart. Share your secure live tracking link with trusted contacts.
           </p>
 
           <form onSubmit={handleStart}>
@@ -151,10 +224,15 @@ export default function SafeJourneyPage() {
                   className="input-field"
                   value={startPoint}
                   onChange={(e) => setStartPoint(e.target.value)}
-                  placeholder="e.g. University Library, Connaught Place"
+                  placeholder="e.g. Current Location, University Library, Connaught Place"
                   required
                 />
               </div>
+              {locationState.coords && (
+                <div style={{ fontSize: '0.76rem', color: 'var(--safe-light)', marginTop: '4px' }}>
+                  ✓ Real GPS fix ready: {locationState.coords.lat.toFixed(4)}° N, {locationState.coords.lng.toFixed(4)}° E (±{locationState.coords.accuracy}m)
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -192,7 +270,7 @@ export default function SafeJourneyPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Estimated Duration (Mins)</label>
+                <label className="form-label">Estimated Baseline Duration (Mins)</label>
                 <input 
                   type="number"
                   min="5"
@@ -201,6 +279,7 @@ export default function SafeJourneyPage() {
                   value={etaInput}
                   onChange={(e) => setEtaInput(e.target.value)}
                 />
+                <span style={{ fontSize: '0.74rem', color: '#94A3B8' }}>Used as reference until real movement speed is detected</span>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Check-in Frequency</label>
@@ -217,33 +296,56 @@ export default function SafeJourneyPage() {
               </div>
             </div>
 
-            {/* Selected Trusted Contacts for Journey */}
+            {/* Select Trusted Contacts for Journey Sharing */}
             <div style={{ background: 'rgba(7, 11, 20, 0.5)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-subtle)', marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                Notify Selected Trusted Contacts on Launch:
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {contacts.map(c => {
-                  const isChecked = selectedContactsForJourney.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleContactJourneySelection(c.id)}
-                      className={`btn btn-sm ${isChecked ? 'btn-safe' : 'btn-outline'}`}
-                      style={{ fontSize: '0.78rem' }}
-                    >
-                      <span>{isChecked ? '✓' : '+'}</span>
-                      <span>{c.name} ({c.relation})</span>
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Select Trusted Contacts to Share Live Link With:
+                </label>
+                {contacts.length === 0 && (
+                  <button 
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    onClick={() => setCurrentPage('contacts')}
+                    style={{ color: 'var(--primary-light)', fontSize: '0.78rem' }}
+                  >
+                    + Add Contacts
+                  </button>
+                )}
               </div>
+              
+              {contacts.length === 0 ? (
+                <div style={{ fontSize: '0.82rem', color: '#94A3B8', fontStyle: 'italic' }}>
+                  No emergency contacts saved yet. You can still track your journey with real GPS and generate a shareable link.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {contacts.map(c => {
+                    const isChecked = selectedContactsForJourney.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleContactJourneySelection(c.id)}
+                        className={`btn btn-sm ${isChecked ? 'btn-safe' : 'btn-outline'}`}
+                        style={{ fontSize: '0.78rem' }}
+                      >
+                        <span>{isChecked ? '✓' : '+'}</span>
+                        <span>{c.name} ({c.relation})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block">
+            <button 
+              type="submit" 
+              className="btn btn-primary btn-lg btn-block"
+              disabled={isRequestingLocation}
+            >
               <Navigation size={20} />
-              <span>{t.journey.startBtn}</span>
+              <span>{isRequestingLocation ? 'Acquiring GPS...' : t.journey.startBtn}</span>
             </button>
           </form>
         </div>
@@ -251,35 +353,80 @@ export default function SafeJourneyPage() {
         /* ACTIVE JOURNEY LIVE MONITORING VIEW */
         <div className="animate-fade-in">
           <div className="journey-progress-box">
-            {/* Active Header */}
+            {/* Active Header & Telemetry */}
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid var(--border-subtle)' }}>
               <div>
-                <span className="badge badge-safe" style={{ marginBottom: '8px' }}>
-                  <span className="demo-banner-dot"></span>
-                  {t.journey.inProgress}
-                </span>
+                {/* State Badge */}
+                <div style={{ marginBottom: '8px' }}>
+                  {activeJourney.status === 'ARRIVED' ? (
+                    <span className="badge badge-safe">
+                      <CheckCircle2 size={13} />
+                      <span>ARRIVED AT DESTINATION</span>
+                    </span>
+                  ) : activeJourney.isPaused ? (
+                    <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#F87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      <Pause size={13} />
+                      <span>TRACKING PAUSED BY USER</span>
+                    </span>
+                  ) : activeJourney.movementState === 'STATIONARY' || activeJourney.status === 'PAUSED/NO_MOVEMENT' ? (
+                    <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                      <span className="demo-banner-dot" style={{ background: '#F59E0B' }}></span>
+                      <span>ACTIVE • STATIONARY (NO MOVEMENT DETECTED)</span>
+                    </span>
+                  ) : (
+                    <span className="badge badge-safe">
+                      <span className="demo-banner-dot"></span>
+                      <span>ACTIVE • IN MOTION (LIVE GPS TRACKING)</span>
+                    </span>
+                  )}
+                </div>
+
                 <h2 style={{ fontSize: '1.6rem', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span>{activeJourney.startPoint}</span>
                   <ArrowRight size={20} color="#818CF8" />
                   <span>{activeJourney.destination}</span>
                 </h2>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px', color: '#94A3B8', fontSize: '0.85rem', marginTop: '6px' }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '14px', color: '#94A3B8', fontSize: '0.85rem', marginTop: '8px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <ModeIcon size={16} color="#34D399" />
                     <span>Mode: {modes.find(m => m.id === activeJourney.mode)?.label || activeJourney.mode}</span>
                   </span>
                   <span>•</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={16} color="#818CF8" />
-                    <span>ETA: ~{Math.max(1, Math.round(activeJourney.etaMinutes * (1 - activeJourney.progress / 100)))} mins remaining</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: activeJourney.movementState === 'STATIONARY' ? '#F59E0B' : '#818CF8' }}>
+                    <Clock size={16} />
+                    <span>ETA: {activeJourney.etaDisplay || 'ETA calculating...'}</span>
                   </span>
                   <span>•</span>
-                  <span style={{ color: 'var(--safe-light)' }}>
-                    GPS: {currentCoordinates.lat}° N, {currentCoordinates.lng}° E
+                  <span style={{ color: currentCoordinates?.lat != null ? 'var(--safe-light)' : '#F59E0B' }}>
+                    {currentCoordinates?.lat != null ? (
+                      `GPS: ${currentCoordinates.lat.toFixed(5)}° N, ${currentCoordinates.lng.toFixed(5)}° E (±${locationState?.coords?.accuracy || 10}m)`
+                    ) : (
+                      'GPS: Signal searching / Permission required'
+                    )}
+                  </span>
+                </div>
+
+                {/* Real Physical Metrics Row */}
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', color: '#CBD5E1', fontSize: '0.82rem', marginTop: '10px' }}>
+                  <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '3px 10px', borderRadius: '6px' }}>
+                    Speed: <strong>{activeJourney.currentSpeedKmh || 0} km/h</strong>
+                  </span>
+                  <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '3px 10px', borderRadius: '6px' }}>
+                    Traveled: <strong>{(activeJourney.distanceTraveledKm || 0).toFixed(2)} km</strong>
+                  </span>
+                  {activeJourney.remainingDistanceKm != null && (
+                    <span style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '3px 10px', borderRadius: '6px' }}>
+                      Remaining: <strong>~{activeJourney.remainingDistanceKm.toFixed(2)} km</strong>
+                    </span>
+                  )}
+                  <span style={{ color: '#818CF8', fontSize: '0.78rem' }}>
+                    {activeJourney.trackingType || 'Real GPS Straight-Line Displacement (Route API not connected)'}
                   </span>
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button 
                   className="btn btn-safe btn-sm"
@@ -295,7 +442,7 @@ export default function SafeJourneyPage() {
                     onClick={() => setCurrentPage('cab')}
                   >
                     <Car size={16} />
-                    <span>Cab Safety Radar</span>
+                    <span>Cab Radar</span>
                   </button>
                 )}
 
@@ -309,34 +456,35 @@ export default function SafeJourneyPage() {
               </div>
             </div>
 
-            {/* Visual Timeline Progress Bar */}
+            {/* Visual Timeline Progress Bar & Real Milestones */}
             <div className="progress-track-wrapper">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#CBD5E1' }}>
-                  {t.journey.progress}
+                  {t.journey.progress} (Physical Distance Progress)
                 </span>
-                <span style={{ fontSize: '1.1rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: '#10B981' }}>
-                  {activeJourney.progress}%
+                <span style={{ fontSize: '1.2rem', fontFamily: 'var(--font-heading)', fontWeight: 800, color: '#10B981' }}>
+                  {activeJourney.progress || 0}%
                 </span>
               </div>
 
               <div className="progress-track-bg">
                 <div 
                   className="progress-track-fill" 
-                  style={{ width: `${activeJourney.progress}%` }}
+                  style={{ width: `${activeJourney.progress || 0}%` }}
                 ></div>
               </div>
 
-              {/* Checkpoint nodes */}
+              {/* Real Checkpoint Nodes */}
               <div className="timeline-checkpoints">
-                {checkpoints.map(cp => {
-                  const isCompleted = activeJourney.progress >= cp.progress;
+                {milestones.map(cp => {
                   return (
                     <div 
-                      key={cp.progress} 
-                      className={`checkpoint-node ${isCompleted ? 'completed' : ''}`}
+                      key={cp.id} 
+                      className={`checkpoint-node ${cp.completed ? 'completed' : ''}`}
                     >
-                      <div className="checkpoint-dot"></div>
+                      <div className="checkpoint-dot">
+                        {cp.completed && <Check size={10} color="#FFFFFF" />}
+                      </div>
                       <span>{cp.label}</span>
                     </div>
                   );
@@ -358,12 +506,16 @@ export default function SafeJourneyPage() {
               margin: '28px 0'
             }}>
               <div>
-                <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>AUTOMATED CHECK-IN STATUS</div>
+                <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>REAL SAFE CHECK-IN TRAIL</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#FFFFFF', marginTop: '2px' }}>
                   Last Checked-in: {activeJourney.lastCheckinTime || 'At departure'}
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#34D399', marginTop: '4px' }}>
-                  ✓ {activeJourney.checkinsCount} Safe check-ins logged for {selectedContactsForJourney.length} contacts
+                  {selectedContactsForJourney.length > 0 ? (
+                    `✓ ${activeJourney.checkinsCount || 0} Safe check-in(s) logged • ${selectedContactsForJourney.length} trusted contact(s) selected for share updates`
+                  ) : (
+                    `✓ ${activeJourney.checkinsCount || 0} Safe check-in(s) logged (No trusted contacts currently selected)`
+                  )}
                 </div>
               </div>
 
@@ -377,7 +529,7 @@ export default function SafeJourneyPage() {
               </button>
             </div>
 
-            {/* Simulation Playback & Adjuster Controls */}
+            {/* Real Journey Controls */}
             <div style={{
               background: 'rgba(15, 23, 42, 0.5)',
               border: '1px solid var(--border-subtle)',
@@ -389,35 +541,49 @@ export default function SafeJourneyPage() {
               justifyContent: 'space-between',
               gap: '12px'
             }}>
-              <span style={{ fontSize: '0.8rem', color: '#94A3B8', fontWeight: 600 }}>
-                SIMULATION CONTROLS:
-              </span>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setJourneyProgress(activeJourney.progress + 20)}
-                  disabled={activeJourney.progress >= 100}
-                >
-                  <span>+20% Progress</span>
-                </button>
-
-                <button 
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setJourneyProgress(0)}
-                >
-                  <RotateCcw size={14} />
-                  <span>Restart</span>
-                </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Activity size={16} color="var(--primary-light)" />
+                <span style={{ fontSize: '0.8rem', color: '#94A3B8', fontWeight: 600 }}>
+                  JOURNEY STATUS: {activeJourney.status}
+                </span>
               </div>
 
-              <button 
-                className="btn btn-outline btn-sm"
-                onClick={endJourney}
-                style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#F87171' }}
-              >
-                <span>{t.journey.endBtn}</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {activeJourney.isPaused ? (
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={resumeJourney}
+                  >
+                    <Play size={14} />
+                    <span>Resume Tracking</span>
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={pauseJourney}
+                  >
+                    <Pause size={14} />
+                    <span>Pause Tracking</span>
+                  </button>
+                )}
+
+                <button 
+                  className="btn btn-safe btn-sm"
+                  onClick={endJourney}
+                >
+                  <CheckCircle2 size={14} />
+                  <span>I Have Arrived Safely</span>
+                </button>
+
+                <button 
+                  className="btn btn-outline btn-sm"
+                  onClick={cancelJourney}
+                  style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#F87171' }}
+                >
+                  <XCircle size={14} />
+                  <span>Cancel Journey</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

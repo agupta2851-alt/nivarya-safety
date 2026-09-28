@@ -48,7 +48,7 @@ export const translations = {
     },
     journey: {
       title: "Safe Journey Tracking",
-      subtitle: "Proactive route monitoring, automated check-ins, and simulated live tracking for your family & friends.",
+      subtitle: "Real-time GPS route monitoring, automated check-ins, and live tracking for your family & friends.",
       startPoint: "Starting Point",
       destination: "Destination",
       selectMode: "Mode of Travel",
@@ -68,8 +68,8 @@ export const translations = {
       checkinBtn: "I'm Safe (Check-in Now)",
       shareBtn: "Share Journey Link",
       endBtn: "End Journey Safely",
-      checkinSuccess: "Safe check-in logged and sent to trusted contacts!",
-      linkCopied: "Simulated live tracking link copied to clipboard!"
+      checkinSuccess: "Safe check-in logged and recorded!",
+      linkCopied: "Live GPS tracking link copied to clipboard!"
     },
     sosModal: {
       alertTitle: "EMERGENCY ALERT MODE",

@@ -10,6 +10,13 @@ import { playCountdownBeep, startEmergencySiren, stopEmergencySiren } from '../u
 import { generateTrackingId } from '../utils/tracking';
 import { authService, normalizePhoneNumber } from '../services/authService';
 import { databaseService } from '../services/databaseService';
+import { 
+  calculateHaversineDistanceKm, 
+  calculateHaversineDistanceMeters, 
+  isSignificantMovement, 
+  geocodeDestination, 
+  MODE_SPEEDS_KMH 
+} from '../utils/geoUtils';
 
 const AppContext = createContext();
 
@@ -845,64 +852,379 @@ export function AppProvider({ children }) {
     refreshPlatformStats();
   };
 
-  // Safe Journey State
+  // Safe Journey State (Real GPS-based movement only, zero timers or fake increments)
+  const defaultJourneyState = {
+    id: null,
+    status: 'NOT_STARTED', // 'NOT_STARTED' | 'ACTIVE' | 'PAUSED/NO_MOVEMENT' | 'ARRIVED' | 'CANCELLED'
+    isActive: false,
+    startPoint: '',
+    destination: '',
+    mode: 'cab',
+    progress: 0,
+    startTime: null,
+    etaMinutes: null,
+    etaDisplay: 'ETA calculating...',
+    initialEtaMinutes: 25,
+    checkinsCount: 0,
+    lastCheckinTime: null,
+    isPaused: false,
+    startCoords: null, // { lat, lng, accuracy, timestamp }
+    currentCoords: null, // { lat, lng, accuracy, timestamp }
+    destCoords: null, // { lat, lng, displayName }
+    distanceTraveledKm: 0,
+    remainingDistanceKm: null,
+    currentSpeedKmh: 0,
+    movementState: 'INITIALIZING', // 'INITIALIZING' | 'MOVING' | 'STATIONARY'
+    trackingType: 'Real GPS Straight-Line Tracking (Route API not connected)',
+    lastMovementTimestamp: null
+  };
+
   const [activeJourney, setActiveJourney] = useState(() => {
+    if (typeof window === 'undefined') return defaultJourneyState;
     const saved = localStorage.getItem('nivarya_journey');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          const isAct = parsed.status === 'ACTIVE' || parsed.status === 'PAUSED/NO_MOVEMENT';
+          return {
+            ...defaultJourneyState,
+            ...parsed,
+            isActive: isAct,
+            status: isAct ? parsed.status : (parsed.status || 'NOT_STARTED')
+          };
+        }
+      } catch (e) { /* ignore */ }
     }
-    return {
-      isActive: false,
-      startPoint: '',
-      destination: '',
-      mode: 'cab',
-      progress: 0,
-      startTime: null,
-      etaMinutes: 25,
-      checkinsCount: 0,
-      lastCheckinTime: null,
-      isPaused: false
-    };
+    return defaultJourneyState;
   });
 
   useEffect(() => {
     localStorage.setItem('nivarya_journey', JSON.stringify(activeJourney));
   }, [activeJourney]);
 
-  // Automated journey progress ticker when active
-  useEffect(() => {
-    if (!activeJourney.isActive || activeJourney.isPaused || activeJourney.progress >= 100) return;
+  const journeyWatchIdRef = useRef(null);
+  const journeyMovementHistoryRef = useRef([]);
 
-    const interval = setInterval(() => {
+  // Continuously watch user's real location with geolocation.watchPosition() when journey is active
+  useEffect(() => {
+    if (!activeJourney.isActive) {
+      if (journeyWatchIdRef.current != null && typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(journeyWatchIdRef.current);
+        journeyWatchIdRef.current = null;
+      }
+      return;
+    }
+
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'danger');
+      return;
+    }
+
+    const onWatchSuccess = (pos) => {
+      const { latitude, longitude, accuracy, speed } = pos.coords;
+      const now = Date.now();
+      const newCoords = {
+        lat: latitude,
+        lng: longitude,
+        accuracy: Math.round(accuracy || 10),
+        timestamp: now
+      };
+
+      // 1. Sync global location state with real device GPS readings
+      setLocationState(prev => ({
+        ...prev,
+        coords: newCoords,
+        status: 'granted',
+        statusMessage: `GPS Active (±${newCoords.accuracy}m)`,
+        source: 'gps',
+        lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+
+      // 2. Persist real live location to database
+      try {
+        const sessionRaw = localStorage.getItem('nivarya_auth_session');
+        const u = sessionRaw ? JSON.parse(sessionRaw) : null;
+        databaseService.recordLiveLocation({
+          userId: u?.id || null,
+          journeyId: activeJourney?.id || null,
+          coords: newCoords,
+          source: 'gps',
+          address: locationState.address || 'Real-time GPS Location',
+          city: locationState.city || '',
+          batteryLevel,
+          trackingToken: currentTrackingId
+        });
+      } catch (e) { /* ignore */ }
+
+      // 3. Process movement detection against GPS jitter threshold
       setActiveJourney(prev => {
         if (!prev.isActive || prev.isPaused) return prev;
-        const nextProgress = Math.min(100, prev.progress + 2);
-        return { ...prev, progress: nextProgress };
-      });
-    }, 2500);
 
-    return () => clearInterval(interval);
+        const effectiveStartCoords = prev.startCoords || newCoords;
+        const lastPosition = prev.currentCoords || newCoords;
+
+        // Calculate distance moved from last known position in meters
+        const distanceDeltaMeters = calculateHaversineDistanceMeters(
+          lastPosition.lat,
+          lastPosition.lng,
+          newCoords.lat,
+          newCoords.lng
+        );
+
+        const timeDeltaSeconds = Math.max(1, (now - (lastPosition.timestamp || (now - 3000))) / 1000);
+
+        // Instantaneous speed calculation
+        let speedKmh = 0;
+        if (speed != null && speed >= 0) {
+          speedKmh = speed * 3.6;
+        } else if (timeDeltaSeconds > 0 && distanceDeltaMeters > 0) {
+          speedKmh = (distanceDeltaMeters / 1000) / (timeDeltaSeconds / 3600);
+        }
+        // Cap any GPS teleportation anomalies
+        speedKmh = Math.min(160, Math.max(0, speedKmh));
+
+        // JITTER / MOVEMENT THRESHOLD:
+        // Do NOT treat normal GPS jitter / stationary noise as actual movement
+        const hasMoved = isSignificantMovement(distanceDeltaMeters, newCoords.accuracy) && speedKmh > 1.2;
+
+        if (!hasMoved) {
+          // USER IS STATIONARY / AT SAME LOCATION
+          // Journey progress must remain unchanged
+          // ETA must NOT artificially decrease
+          // Milestones must NOT advance
+          const stationaryEta = prev.etaMinutes != null
+            ? `~${prev.etaMinutes} mins (Stationary — ETA paused)`
+            : (prev.etaDisplay || 'ETA calculating...');
+
+          return {
+            ...prev,
+            status: 'PAUSED/NO_MOVEMENT',
+            movementState: 'STATIONARY',
+            currentCoords: newCoords,
+            currentSpeedKmh: 0,
+            etaDisplay: stationaryEta
+            // progress, distanceTraveledKm, and milestones are untouched!
+          };
+        }
+
+        // REAL PHYSICAL MOVEMENT DETECTED
+        const addedKm = distanceDeltaMeters / 1000;
+        const newDistanceTraveledKm = Number(((prev.distanceTraveledKm || 0) + addedKm).toFixed(3));
+
+        // Record valid movement point in history
+        const history = journeyMovementHistoryRef.current;
+        history.push({
+          lat: newCoords.lat,
+          lng: newCoords.lng,
+          timestamp: now,
+          distanceDeltaMeters,
+          speedKmh
+        });
+        if (history.length > 8) history.shift();
+
+        // Calculate smoothed average speed over valid movement points
+        const recentSpeeds = history.map(h => h.speedKmh).filter(s => s > 1);
+        const avgSpeedKmh = recentSpeeds.length > 0
+          ? recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length
+          : speedKmh;
+
+        // REAL PROGRESS CALCULATION:
+        let updatedProgress = prev.progress || 0;
+        let remainingKm = prev.remainingDistanceKm;
+        let isArrivedNow = false;
+
+        if (prev.destCoords && prev.destCoords.lat != null && prev.destCoords.lng != null) {
+          // Straight-line distance relative to geocoded destination
+          const totalDistanceKm = calculateHaversineDistanceKm(
+            effectiveStartCoords.lat,
+            effectiveStartCoords.lng,
+            prev.destCoords.lat,
+            prev.destCoords.lng
+          );
+          const currentDistanceToDestKm = calculateHaversineDistanceKm(
+            newCoords.lat,
+            newCoords.lng,
+            prev.destCoords.lat,
+            prev.destCoords.lng
+          );
+          remainingKm = Number(currentDistanceToDestKm.toFixed(2));
+
+          if (currentDistanceToDestKm <= 0.06) {
+            // Within 60m of destination: arrived!
+            updatedProgress = 100;
+            isArrivedNow = true;
+          } else if (totalDistanceKm > 0) {
+            const rawProgress = Math.round(((totalDistanceKm - currentDistanceToDestKm) / totalDistanceKm) * 100);
+            updatedProgress = Math.max(prev.progress || 0, Math.min(99, Math.max(0, rawProgress)));
+          }
+        } else {
+          // If destination coordinates unavailable, calculate progress relative to expected trip distance
+          const modeSpeed = MODE_SPEEDS_KMH[prev.mode] || 25;
+          const expectedDistanceKm = Math.max(0.5, (modeSpeed * (prev.initialEtaMinutes || 25)) / 60);
+          remainingKm = Number(Math.max(0, expectedDistanceKm - newDistanceTraveledKm).toFixed(2));
+          const rawProgress = Math.round((newDistanceTraveledKm / expectedDistanceKm) * 100);
+          updatedProgress = Math.max(prev.progress || 0, Math.min(99, Math.max(0, rawProgress)));
+        }
+
+        // HONEST REAL-MOVEMENT ETA CALCULATION:
+        let updatedEtaMinutes = prev.etaMinutes;
+        let updatedEtaDisplay = prev.etaDisplay;
+
+        const totalTraveledMeters = newDistanceTraveledKm * 1000;
+        // Require at least 2 movements and > 40m distance before calculating ETA from actual speed
+        if (history.length >= 2 && totalTraveledMeters >= 40 && avgSpeedKmh >= 1.5) {
+          if (remainingKm != null && remainingKm > 0) {
+            const calculatedMinutes = Math.max(1, Math.round((remainingKm / avgSpeedKmh) * 60));
+            updatedEtaMinutes = calculatedMinutes;
+            updatedEtaDisplay = `~${calculatedMinutes} mins remaining`;
+          } else {
+            updatedEtaDisplay = '~1 min remaining';
+          }
+        } else {
+          updatedEtaDisplay = 'ETA calculating...';
+        }
+
+        const nextStatus = isArrivedNow ? 'ARRIVED' : 'ACTIVE';
+        const nextIsActive = !isArrivedNow;
+
+        // Persist update to database
+        if (prev.id) {
+          databaseService.updateJourney(prev.id, {
+            status: nextStatus.toLowerCase(),
+            progress: updatedProgress,
+            eta_minutes: updatedEtaMinutes,
+            eta_display: updatedEtaDisplay,
+            distance_traveled_km: newDistanceTraveledKm,
+            current_coords: newCoords
+          }).catch(() => {});
+        }
+
+        return {
+          ...prev,
+          status: nextStatus,
+          isActive: nextIsActive,
+          movementState: 'MOVING',
+          startCoords: effectiveStartCoords,
+          currentCoords: newCoords,
+          distanceTraveledKm: newDistanceTraveledKm,
+          remainingDistanceKm: remainingKm,
+          currentSpeedKmh: Number(avgSpeedKmh.toFixed(1)),
+          progress: updatedProgress,
+          etaMinutes: updatedEtaMinutes,
+          etaDisplay: updatedEtaDisplay,
+          lastMovementTimestamp: now
+        };
+      });
+    };
+
+    const onWatchError = (err) => {
+      console.warn('Geolocation watchPosition error:', err);
+      if (err.code === 1) { // PERMISSION_DENIED
+        setLocationState(prev => ({
+          ...prev,
+          status: 'denied',
+          statusMessage: 'Location permission denied'
+        }));
+      }
+    };
+
+    journeyWatchIdRef.current = navigator.geolocation.watchPosition(
+      onWatchSuccess,
+      onWatchError,
+      {
+        enableHighAccuracy: true,
+        maximumAge: 4000,
+        timeout: 15000
+      }
+    );
+
+    return () => {
+      if (journeyWatchIdRef.current != null && typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(journeyWatchIdRef.current);
+        journeyWatchIdRef.current = null;
+      }
+    };
   }, [activeJourney.isActive, activeJourney.isPaused]);
 
   const startJourney = async (routeDetails) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      showToast('Geolocation is not supported by your device', 'danger');
+      return;
+    }
+
+    // Require real GPS permission
+    let realCoords = locationState.coords;
+    if (!realCoords || locationState.status !== 'granted') {
+      try {
+        const gpsResult = await requestGpsLocation();
+        realCoords = gpsResult.coords;
+      } catch (err) {
+        showToast('Location permission is required for live journey tracking.', 'danger');
+        return;
+      }
+    }
+
+    if (!realCoords || realCoords.lat == null) {
+      showToast('Location permission is required for live journey tracking.', 'danger');
+      return;
+    }
+
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const journeyToken = generateTrackingId();
     setShareToken(journeyToken);
     setCurrentTrackingId(journeyToken);
 
     const journeyId = `jrn-${Date.now()}`;
+    journeyMovementHistoryRef.current = [];
+
+    // Attempt real destination geocoding
+    let destCoords = null;
+    if (routeDetails.destination) {
+      try {
+        destCoords = await geocodeDestination(routeDetails.destination);
+      } catch (e) { /* ignore */ }
+    }
+
+    const initialEta = Number(routeDetails.etaMinutes) || 25;
+    const startObj = {
+      lat: realCoords.lat,
+      lng: realCoords.lng,
+      accuracy: realCoords.accuracy || 10,
+      timestamp: Date.now()
+    };
+
+    let initialRemainingKm = null;
+    if (destCoords && destCoords.lat != null) {
+      initialRemainingKm = Number(
+        calculateHaversineDistanceKm(startObj.lat, startObj.lng, destCoords.lat, destCoords.lng).toFixed(2)
+      );
+    }
+
     const journeyObj = {
       id: journeyId,
+      status: 'ACTIVE',
       isActive: true,
-      startPoint: routeDetails.startPoint || 'My Location',
+      startPoint: routeDetails.startPoint || 'Current Location',
       destination: routeDetails.destination || 'Destination',
       mode: routeDetails.mode || 'cab',
       progress: 0,
       startTime: new Date().toISOString(),
-      etaMinutes: routeDetails.etaMinutes || 25,
+      etaMinutes: null,
+      etaDisplay: 'ETA calculating...',
+      initialEtaMinutes: initialEta,
       checkinsCount: 0,
       lastCheckinTime: nowTime,
-      isPaused: false
+      isPaused: false,
+      startCoords: startObj,
+      currentCoords: startObj,
+      destCoords: destCoords,
+      distanceTraveledKm: 0,
+      remainingDistanceKm: initialRemainingKm,
+      currentSpeedKmh: 0,
+      movementState: 'INITIALIZING',
+      trackingType: 'Real GPS Straight-Line Tracking (Route API not connected)',
+      lastMovementTimestamp: Date.now()
     };
 
     setActiveJourney(journeyObj);
@@ -916,31 +1238,43 @@ export function AppProvider({ children }) {
         startPoint: journeyObj.startPoint,
         destination: journeyObj.destination,
         mode: journeyObj.mode,
-        etaMinutes: journeyObj.etaMinutes
+        status: 'active',
+        progress: 0,
+        etaMinutes: initialEta,
+        etaDisplay: 'ETA calculating...',
+        startCoords: startObj,
+        currentCoords: startObj,
+        destCoords: destCoords,
+        distanceTraveledKm: 0
       });
       refreshPlatformStats();
     } catch (e) {
       console.warn('Failed to record journey in database:', e);
     }
 
-    showToast('Safe Journey activated! Contacts notified of live route.', 'safe');
+    showToast('Safe Journey activated with real GPS tracking. Share your live link with contacts.', 'safe');
     addSafetyHistory({
       type: 'journey',
-      title: `Journey Started: ${routeDetails.startPoint || 'Origin'} → ${routeDetails.destination || 'Destination'}`,
-      details: `Mode: ${routeDetails.mode || 'Cab'} • ETA: ${routeDetails.etaMinutes || 25} mins. Live GPS active.`,
+      title: `Journey Started: ${journeyObj.startPoint} → ${journeyObj.destination}`,
+      details: `Mode: ${journeyObj.mode} • Real GPS tracking engaged.`,
       status: 'In Transit'
     });
   };
 
   const performCheckin = () => {
     const checkinTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const currentLocDesc = locationState.coords 
+      ? `GPS (${locationState.coords.lat.toFixed(4)}° N, ${locationState.coords.lng.toFixed(4)}° E)`
+      : (currentCoordinates.address || 'Current Location');
+
     setActiveJourney(prev => {
-      const nextCount = prev.checkinsCount + 1;
+      const nextCount = (prev.checkinsCount || 0) + 1;
       if (prev.id) {
         databaseService.updateJourney(prev.id, {
           checkins_count: nextCount,
           last_checkin_time: new Date().toISOString(),
-          progress: prev.progress
+          progress: prev.progress,
+          current_coords: prev.currentCoords
         }).catch(() => {});
       }
       return {
@@ -949,22 +1283,103 @@ export function AppProvider({ children }) {
         lastCheckinTime: checkinTime
       };
     });
-    showToast(t.journey.checkinSuccess || "Safe check-in logged and sent to trusted contacts!", 'safe');
+
+    // Record real check-in in database activity trail
+    databaseService.recordUserActivity({
+      userId: userProfile?.id || null,
+      activityType: 'checkin',
+      title: 'Manual Safe Check-in',
+      details: `User confirmed safe status at ${currentLocDesc}.`,
+      location: currentLocDesc,
+      status: 'Verified'
+    }).catch(() => {});
+
+    showToast(t.journey.checkinSuccess || "Safe check-in logged and recorded!", 'safe');
     addSafetyHistory({
       type: 'checkin',
       title: 'Manual Safe Check-in',
-      details: `Confirmed safe status at ${currentCoordinates.address} (${checkinTime}).`,
+      details: `Confirmed safe status at ${currentLocDesc} (${checkinTime}).`,
       status: 'Verified'
+    });
+  };
+
+  const pauseJourney = () => {
+    setActiveJourney(prev => {
+      if (!prev.isActive) return prev;
+      if (prev.id) {
+        databaseService.updateJourney(prev.id, { status: 'paused' }).catch(() => {});
+      }
+      return {
+        ...prev,
+        status: 'PAUSED/NO_MOVEMENT',
+        isPaused: true,
+        movementState: 'STATIONARY',
+        etaDisplay: prev.etaMinutes ? `~${prev.etaMinutes} mins (Paused)` : 'ETA paused'
+      };
+    });
+    showToast('Journey tracking paused.', 'info');
+  };
+
+  const resumeJourney = () => {
+    setActiveJourney(prev => {
+      if (!prev.isActive) return prev;
+      if (prev.id) {
+        databaseService.updateJourney(prev.id, { status: 'active' }).catch(() => {});
+      }
+      return {
+        ...prev,
+        status: 'ACTIVE',
+        isPaused: false,
+        movementState: 'INITIALIZING'
+      };
+    });
+    showToast('Journey tracking resumed.', 'safe');
+  };
+
+  const cancelJourney = async () => {
+    const jId = activeJourney.id;
+    if (journeyWatchIdRef.current != null && typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(journeyWatchIdRef.current);
+      journeyWatchIdRef.current = null;
+    }
+    setActiveJourney(prev => ({
+      ...prev,
+      isActive: false,
+      status: 'CANCELLED',
+      isPaused: false,
+      etaDisplay: 'Journey cancelled'
+    }));
+    setIsSharingLocation(false);
+
+    try {
+      if (jId) await databaseService.cancelJourney(jId);
+      refreshPlatformStats();
+    } catch (e) {
+      console.warn('Failed to cancel journey in database:', e);
+    }
+
+    showToast('Journey cancelled.', 'info');
+    addSafetyHistory({
+      type: 'journey',
+      title: 'Journey Cancelled',
+      details: `Journey towards ${activeJourney.destination || 'Destination'} was cancelled by user.`,
+      status: 'Cancelled'
     });
   };
 
   const endJourney = async () => {
     const jId = activeJourney.id;
+    if (journeyWatchIdRef.current != null && typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(journeyWatchIdRef.current);
+      journeyWatchIdRef.current = null;
+    }
     setActiveJourney(prev => ({
       ...prev,
       isActive: false,
+      status: 'ARRIVED',
       progress: 100,
-      isPaused: false
+      isPaused: false,
+      etaDisplay: 'Arrived at destination'
     }));
     setIsSharingLocation(false);
 
@@ -982,10 +1397,6 @@ export function AppProvider({ children }) {
       details: `Arrived safely at ${activeJourney.destination || 'Destination'}. Automated tracking disengaged.`,
       status: 'Completed Safely'
     });
-  };
-
-  const setJourneyProgress = (val) => {
-    setActiveJourney(prev => ({ ...prev, progress: Math.min(100, Math.max(0, val)) }));
   };
 
   // SOS Emergency Modal & Protocol
@@ -1575,8 +1986,10 @@ export function AppProvider({ children }) {
         activeJourney,
         startJourney,
         performCheckin,
+        pauseJourney,
+        resumeJourney,
+        cancelJourney,
         endJourney,
-        setJourneyProgress,
 
         // SOS & Emergency
         isSosModalOpen,

@@ -338,7 +338,7 @@ export default function DashboardPage() {
                 {activeJourney.startPoint} ➔ {activeJourney.destination}
               </div>
               <div style={{ fontSize: '0.82rem', color: '#94A3B8' }}>
-                Progress: {activeJourney.progress}% • ETA: ~{activeJourney.etaMinutes} mins • Mode: {activeJourney.mode}
+                Progress: {activeJourney.progress}% • {activeJourney.etaDisplay || 'ETA calculating...'} • Mode: {activeJourney.mode}
               </div>
             </div>
           </div>

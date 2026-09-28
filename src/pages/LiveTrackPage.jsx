@@ -352,7 +352,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
               <span>ACTIVE SAFE JOURNEY IN TRANSIT</span>
             </div>
             <span style={{ fontSize: '0.8rem', color: 'var(--safe-light)', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 10px', borderRadius: '20px', fontWeight: 600 }}>
-              ETA ~ {activeJourney.etaMinutes} mins
+              {activeJourney.etaDisplay || 'ETA calculating...'}
             </span>
           </div>
 
