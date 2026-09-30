@@ -330,6 +330,16 @@ export default function Navbar() {
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <button
+                    className={`btn btn-secondary btn-sm ${currentPage === 'contacts' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('contacts')}
+                    title="Safety Circle (Trusted Contacts)"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px' }}
+                  >
+                    <Users size={15} color="#818CF8" />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Safety Circle</span>
+                  </button>
+
+                  <button
                     className={`btn btn-secondary btn-sm ${currentPage === 'profile' ? 'active' : ''}`}
                     onClick={() => handleNavClick('profile')}
                     title={`Signed in as ${currentUser?.name || 'User'}`}
@@ -540,8 +550,8 @@ export default function Navbar() {
                   onClick={() => handleNavClick('contacts')}
                   style={{ marginTop: '2px' }}
                 >
-                  <PhoneCall size={18} color="#10B981" />
-                  <span>{t.nav.contacts || 'Trusted Contacts'}</span>
+                  <Users size={18} color="#818CF8" />
+                  <span>Safety Circle</span>
                 </button>
 
                 <button

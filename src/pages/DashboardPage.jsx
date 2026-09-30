@@ -29,6 +29,7 @@ import {
   BatteryLow
 } from 'lucide-react';
 import { emergencyResourcesList } from '../data/initialData';
+import { maskPhoneNumber, getRelationshipMeta } from './TrustedContactsPage';
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
@@ -540,89 +541,134 @@ export default function DashboardPage() {
 
         {/* Right Column: Contacts, Nearby Resources & Safety Tips */}
         <div>
-          {/* Trusted Contacts Strip */}
+          {/* Safety Circle / Trusted Contacts Card */}
           <div className="card" style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <Users size={18} color="#6366F1" />
-                <span>{t.dashboard.trustedContactsTitle}</span>
+                <span>Safety Circle</span>
               </h3>
               <button 
                 className="btn btn-ghost btn-sm"
                 onClick={() => { setCurrentPage('contacts'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 style={{ fontSize: '0.8rem', color: '#818CF8' }}
               >
-                <span>View All ({contacts.length})</span>
+                <span>{contacts.length === 0 ? 'Open' : `Manage (${contacts.length})`}</span>
                 <ChevronRight size={14} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {contacts.slice(0, 3).map(contact => (
-                <div key={contact.id} style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '50%',
-                      background: contact.avatarColor || '#6366F1',
-                      color: '#FFFFFF',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.85rem'
-                    }}>
-                      {contact.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF' }}>
-                        {contact.name}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                        {contact.relation} {contact.isPrimary && '• Primary'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button 
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleTestPing(contact.name)}
-                      title="Send Test Ping"
-                      style={{ padding: '6px' }}
-                    >
-                      <Share2 size={15} color="#10B981" />
-                    </button>
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleQuickCall(contact.phone, contact.name)}
-                      title="Quick Call"
-                      style={{ padding: '6px 10px' }}
-                    >
-                      <PhoneCall size={14} />
-                    </button>
-                  </div>
+            {contacts.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '24px 16px',
+                background: 'var(--bg-surface)',
+                border: '1px dashed var(--border-subtle)',
+                borderRadius: '12px',
+                marginBottom: '8px'
+              }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px auto' }}>
+                  <Users size={20} />
                 </div>
-              ))}
-            </div>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '4px' }}>
+                  Your Safety Circle is empty.
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#94A3B8', marginBottom: '16px', maxWidth: '280px', margin: '0 auto 16px auto', lineHeight: 1.4 }}>
+                  Add people you trust so Nivarya can notify them during supported safety events.
+                </div>
+                <button 
+                  className="btn btn-primary btn-sm"
+                  onClick={() => { setCurrentPage('contacts'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} />
+                  <span>+ Add Trusted Contact</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {contacts.slice(0, 3).map(contact => {
+                    const relMeta = getRelationshipMeta(contact.relationship || contact.relation);
+                    const isPrimary = Boolean(contact.is_primary || contact.isPrimary);
+                    return (
+                      <div key={contact.id} style={{
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '50%',
+                            background: contact.avatar_color || contact.avatarColor || '#6366F1',
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '0.9rem',
+                            flexShrink: 0
+                          }}>
+                            {contact.name?.charAt(0)?.toUpperCase() || 'U'}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{contact.name}</span>
+                              {isPrimary && (
+                                <span className="badge badge-safe" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                              <span>{relMeta.icon} {relMeta.label}</span>
+                              <span>•</span>
+                              <span style={{ fontFamily: 'monospace' }}>{maskPhoneNumber(contact.phone)}</span>
+                            </div>
+                          </div>
+                        </div>
 
-            <button 
-              className="btn btn-outline btn-sm btn-block"
-              onClick={() => { setCurrentPage('contacts'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              style={{ marginTop: '14px' }}
-            >
-              <Plus size={15} />
-              <span>Add or Manage Contacts</span>
-            </button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button 
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => handleTestPing(contact.name)}
+                            title="Send Test Ping"
+                            style={{ padding: '6px' }}
+                            aria-label={`Ping ${contact.name}`}
+                          >
+                            <Share2 size={15} color="#10B981" />
+                          </button>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleQuickCall(contact.phone, contact.name)}
+                            title="Quick Call"
+                            style={{ padding: '6px 10px' }}
+                            aria-label={`Call ${contact.name}`}
+                          >
+                            <PhoneCall size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button 
+                  className="btn btn-outline btn-sm btn-block"
+                  onClick={() => { setCurrentPage('contacts'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  style={{ marginTop: '14px' }}
+                >
+                  <Users size={14} />
+                  <span>Manage Safety Circle ({contacts.length})</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Nearby Emergency Resources */}

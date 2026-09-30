@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { translations } from '../data/translations';
 import { 
   initialContacts, 
@@ -36,13 +36,13 @@ function getInitialRoute() {
     const cleanPath = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
     const validPages = [
       'login', 'signup', 'profile-setup',
-      'dashboard', 'journey', 'sos', 'contacts', 'map', 'report',
+      'dashboard', 'journey', 'sos', 'contacts', 'safety-circle', 'map', 'report',
       'community', 'safebot', 'resources', 'profile', 'about',
       'routes', 'cab', 'intel', 'voice-gesture', 'evidence',
       'privacy', 'history', 'track'
     ];
     if (validPages.includes(cleanPath)) {
-      return { page: cleanPath, trackingId: null };
+      return { page: cleanPath === 'safety-circle' ? 'contacts' : cleanPath, trackingId: null };
     }
   }
   return { page: 'home', trackingId: null };
@@ -227,48 +227,88 @@ export function AppProvider({ children }) {
     }
   }, [userProfile]);
 
-  // Trusted Contacts
+  // Safety Circle / Trusted Contacts (Strict User Isolation & Database Backed)
   const [contacts, setContacts] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
-        if (sessionUserRaw) {
-          const u = JSON.parse(sessionUserRaw);
-          if (Array.isArray(u.contacts)) return u.contacts;
+        const u = authService.getCurrentUser();
+        if (u && u.id) {
+          const allContacts = JSON.parse(localStorage.getItem('nivarya_db_trusted_contacts') || '[]');
+          return allContacts.filter(c => c.user_id === u.id);
         }
-        const saved = localStorage.getItem('nivarya_contacts');
-        if (saved) return JSON.parse(saved);
       } catch (e) { /* ignore */ }
     }
-    return initialContacts;
+    return [];
   });
-
-  useEffect(() => {
-    localStorage.setItem('nivarya_contacts', JSON.stringify(contacts));
-    // Persist to user record if authenticated
-    try {
-      const sessionUserRaw = localStorage.getItem('nivarya_auth_session');
-      if (sessionUserRaw) {
-        const u = JSON.parse(sessionUserRaw);
-        if (u && u.id) {
-          const usersRaw = localStorage.getItem('nivarya_auth_users');
-          if (usersRaw) {
-            const users = JSON.parse(usersRaw);
-            const idx = users.findIndex(usr => usr.id === u.id);
-            if (idx !== -1) {
-              users[idx].contacts = contacts;
-              localStorage.setItem('nivarya_auth_users', JSON.stringify(users));
-            }
-          }
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }, [contacts]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
 
   // Selected Contacts for SOS and Journey
   const [selectedContactsForSos, setSelectedContactsForSos] = useState(() => {
-    return contacts.map(c => c.id);
+    return contacts.filter(c => c.alert_status !== 'muted').map(c => c.id);
   });
+
+  const [selectedContactsForJourney, setSelectedContactsForJourney] = useState(() => {
+    return contacts.filter(c => c.is_primary || c.isPrimary || c.alert_status === 'active' || c.alert_status === 'journey_only').map(c => c.id);
+  });
+
+  const loadUserContacts = useCallback(async (userId) => {
+    if (!userId) {
+      setContacts([]);
+      setSelectedContactsForSos([]);
+      setSelectedContactsForJourney([]);
+      return [];
+    }
+    setIsLoadingContacts(true);
+    try {
+      const data = await databaseService.getTrustedContacts(userId);
+      const safeData = Array.isArray(data) ? data : [];
+      setContacts(safeData);
+      setSelectedContactsForSos(safeData.filter(c => c.alert_status !== 'muted').map(c => c.id));
+      setSelectedContactsForJourney(safeData.filter(c => c.is_primary || c.isPrimary || c.alert_status === 'active' || c.alert_status === 'journey_only').map(c => c.id));
+      return safeData;
+    } catch (err) {
+      console.warn('Failed to load user trusted contacts:', err);
+      return [];
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  }, []);
+
+  // Listen to auth events (login, logout, account switch) to reload strictly for active user
+  useEffect(() => {
+    const handleAuthEvent = () => {
+      const u = authService.getCurrentUser();
+      if (u?.id) {
+        loadUserContacts(u.id);
+      } else {
+        setContacts([]);
+        setSelectedContactsForSos([]);
+        setSelectedContactsForJourney([]);
+      }
+    };
+
+    window.addEventListener('storage', handleAuthEvent);
+    window.addEventListener('nivarya:auth_state_change', handleAuthEvent);
+    return () => {
+      window.removeEventListener('storage', handleAuthEvent);
+      window.removeEventListener('nivarya:auth_state_change', handleAuthEvent);
+    };
+  }, [loadUserContacts]);
+
+  // Realtime subscription: updates Safety Circle instantly across tabs/clients without page reloads
+  useEffect(() => {
+    const unsubscribe = databaseService.subscribeToRealtimeUpdates((event) => {
+      if (event && (event.table === 'trusted_contacts' || event.table === 'emergency_contacts')) {
+        const u = authService.getCurrentUser();
+        if (u?.id) {
+          loadUserContacts(u.id);
+        }
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [loadUserContacts]);
 
   const toggleContactSosSelection = (id) => {
     setSelectedContactsForSos(prev => 
@@ -276,38 +316,90 @@ export function AppProvider({ children }) {
     );
   };
 
-  const [selectedContactsForJourney, setSelectedContactsForJourney] = useState(() => {
-    return contacts.filter(c => c.isPrimary || c.relation === 'Parent').map(c => c.id);
-  });
-
   const toggleContactJourneySelection = (id) => {
     setSelectedContactsForJourney(prev => 
       prev.includes(id) ? (prev.length > 1 ? prev.filter(cId => cId !== id) : prev) : [...prev, id]
     );
   };
 
-  const addContact = (newContact) => {
-    const contactWithId = {
-      ...newContact,
-      id: `cnt-${Date.now()}`,
-      priority: contacts.length + 1,
-      avatarColor: ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'][Math.floor(Math.random() * 5)]
-    };
-    setContacts(prev => [contactWithId, ...prev]);
-    setSelectedContactsForSos(prev => [...prev, contactWithId.id]);
-    showToast('New trusted contact added successfully', 'safe');
+  const addContact = async (newContact) => {
+    const u = authService.getCurrentUser();
+    if (!u || !u.id) {
+      showToast('Please log in to add contacts to your Safety Circle.', 'danger');
+      throw new Error('User authentication required.');
+    }
+
+    try {
+      const saved = await databaseService.saveTrustedContact(u.id, {
+        ...newContact,
+        priority: contacts.length + 1
+      });
+      if (saved) {
+        setContacts(prev => {
+          const exists = prev.some(c => c.id === saved.id);
+          return exists ? prev.map(c => c.id === saved.id ? saved : c) : [saved, ...prev];
+        });
+        if (saved.alert_status !== 'muted') {
+          setSelectedContactsForSos(prev => prev.includes(saved.id) ? prev : [...prev, saved.id]);
+        }
+        if (saved.is_primary || saved.alert_status === 'active' || saved.alert_status === 'journey_only') {
+          setSelectedContactsForJourney(prev => prev.includes(saved.id) ? prev : [...prev, saved.id]);
+        }
+        showToast(`${saved.name} added to your Safety Circle`, 'safe');
+        return saved;
+      }
+    } catch (err) {
+      console.error('Error adding contact to Safety Circle:', err);
+      showToast(err.message || 'Failed to add contact', 'danger');
+      throw err;
+    }
   };
 
-  const updateContact = (id, updatedFields) => {
-    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...updatedFields } : c));
-    showToast('Contact details updated', 'info');
+  const updateContact = async (id, updatedFields) => {
+    const u = authService.getCurrentUser();
+    if (!u || !u.id) {
+      showToast('Please log in to edit trusted contacts.', 'danger');
+      throw new Error('User authentication required.');
+    }
+
+    try {
+      const existing = contacts.find(c => c.id === id) || {};
+      const saved = await databaseService.saveTrustedContact(u.id, {
+        ...existing,
+        ...updatedFields,
+        id
+      });
+      if (saved) {
+        setContacts(prev => prev.map(c => c.id === id ? saved : c));
+        showToast('Contact details updated successfully', 'info');
+        return saved;
+      }
+    } catch (err) {
+      console.error('Error updating contact:', err);
+      showToast(err.message || 'Failed to update contact', 'danger');
+      throw err;
+    }
   };
 
-  const deleteContact = (id) => {
-    setContacts(prev => prev.filter(c => c.id !== id));
-    setSelectedContactsForSos(prev => prev.filter(cId => cId !== id));
-    setSelectedContactsForJourney(prev => prev.filter(cId => cId !== id));
-    showToast('Contact removed', 'info');
+  const deleteContact = async (id) => {
+    const u = authService.getCurrentUser();
+    if (!u || !u.id) {
+      showToast('Please log in to delete contacts.', 'danger');
+      throw new Error('User authentication required.');
+    }
+
+    try {
+      await databaseService.deleteTrustedContact(u.id, id);
+      setContacts(prev => prev.filter(c => c.id !== id));
+      setSelectedContactsForSos(prev => prev.filter(cId => cId !== id));
+      setSelectedContactsForJourney(prev => prev.filter(cId => cId !== id));
+      showToast('Contact removed from Safety Circle', 'info');
+      return true;
+    } catch (err) {
+      console.error('Error deleting contact:', err);
+      showToast(err.message || 'Failed to delete contact', 'danger');
+      throw err;
+    }
   };
 
   // Real-Time Location & Telemetry State
@@ -366,8 +458,8 @@ export function AppProvider({ children }) {
             safetyPin: u.safetyPin || '1234',
             isProfileComplete: Boolean(u.isProfileComplete)
           }));
-          if (Array.isArray(u.contacts)) {
-            setContacts(u.contacts);
+          if (u.id) {
+            loadUserContacts(u.id);
           }
           if (u.locationState) {
             setLocationState(u.locationState);
@@ -1947,12 +2039,15 @@ export function AppProvider({ children }) {
         saveProfile,
         syncUserProfileFromSession,
 
-        // Trusted Contacts
+        // Trusted Contacts / Safety Circle
         contacts,
         setContacts,
         addContact,
         updateContact,
         deleteContact,
+        getTrustedContacts: (userId) => databaseService.getTrustedContacts(userId || authService.getCurrentUser()?.id),
+        loadUserContacts,
+        isLoadingContacts,
         selectedContactsForSos,
         toggleContactSosSelection,
         selectedContactsForJourney,

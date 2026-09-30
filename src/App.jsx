@@ -88,8 +88,9 @@ function MainApp() {
       case 'sos':
         return <EmergencyPage />;
       case 'contacts':
+      case 'safety-circle':
         return (
-          <ProtectedRoute title="Trusted Guardian Network">
+          <ProtectedRoute title="Safety Circle & Trusted Contacts">
             <TrustedContactsPage />
           </ProtectedRoute>
         );

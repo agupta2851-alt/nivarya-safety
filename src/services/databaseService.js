@@ -9,11 +9,13 @@
  * ZERO fake or fabricated numbers.
  */
 
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient.js';
 
 const STORAGE_KEYS = {
   PROFILES: 'nivarya_db_profiles',
-  CONTACTS: 'nivarya_db_emergency_contacts',
+  TRUSTED_CONTACTS: 'nivarya_db_trusted_contacts',
+  CONTACTS: 'nivarya_db_trusted_contacts',
+  LEGACY_CONTACTS: 'nivarya_db_emergency_contacts',
   JOURNEYS: 'nivarya_db_journeys',
   LOCATIONS: 'nivarya_db_live_locations',
   SOS: 'nivarya_db_sos_events',
@@ -21,6 +23,29 @@ const STORAGE_KEYS = {
   SAFETY_HUBS: 'nivarya_db_safety_locations',
   ACTIVITY: 'nivarya_db_user_activity'
 };
+
+/**
+ * Normalizes contact record ensuring cross-compatibility between
+ * PostgreSQL snake_case and UI camelCase properties.
+ */
+export function normalizeContactRecord(raw) {
+  if (!raw) return null;
+  const rel = raw.relationship || raw.relation || 'Mother';
+  const alert = raw.alert_status || raw.alertStatus || 'active';
+  const isPrim = Boolean(raw.is_primary ?? raw.isPrimary);
+  const color = raw.avatar_color || raw.avatarColor || '#6366F1';
+  return {
+    ...raw,
+    relationship: rel,
+    relation: rel,
+    alert_status: alert,
+    alertStatus: alert,
+    is_primary: isPrim,
+    isPrimary: isPrim,
+    avatar_color: color,
+    avatarColor: color
+  };
+}
 
 // Verified Pan-India emergency response centers and official helplines
 const OFFICIAL_SAFETY_LOCATIONS = [
@@ -224,6 +249,8 @@ export const databaseService = {
       try {
         const channel = supabase
           .channel('nivarya-public-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'trusted_contacts' }, () => callback({ table: 'trusted_contacts' }))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_contacts' }, () => callback({ table: 'emergency_contacts' }))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'journeys' }, () => callback({ table: 'journeys' }))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'safety_reports' }, () => callback({ table: 'safety_reports' }))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_events' }, () => callback({ table: 'sos_events' }))
@@ -317,39 +344,79 @@ export const databaseService = {
   },
 
   // ----------------------------------------------------------------------------
-  // EMERGENCY CONTACTS
+  // SAFETY CIRCLE / TRUSTED CONTACTS (STRICT USER ISOLATION)
   // ----------------------------------------------------------------------------
-  async getEmergencyContacts(userId) {
+  async getTrustedContacts(userId) {
     if (!userId) return [];
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
+          .from('trusted_contacts')
+          .select('*')
+          .eq('user_id', userId)
+          .order('priority', { ascending: true });
+        if (!error && data) {
+          return data.map(normalizeContactRecord);
+        }
+        // Fallback to emergency_contacts if trusted_contacts table is not yet provisioned
+        const { data: fbData, error: fbError } = await supabase
           .from('emergency_contacts')
           .select('*')
           .eq('user_id', userId)
           .order('priority', { ascending: true });
-        if (!error && data) return data;
+        if (!fbError && fbData) {
+          return fbData.map(normalizeContactRecord);
+        }
       } catch (err) {
-        console.warn('Supabase getEmergencyContacts failed:', err);
+        console.warn('Supabase getTrustedContacts failed, reading local relational store:', err);
       }
     }
 
-    const contacts = localDb.readTable(STORAGE_KEYS.CONTACTS, []);
-    return contacts.filter(c => c.user_id === userId);
+    let contacts = localDb.readTable(STORAGE_KEYS.TRUSTED_CONTACTS, []);
+    // One-time legacy migration from unpartitioned or legacy table if needed
+    if (contacts.length === 0) {
+      const legacy = localDb.readTable(STORAGE_KEYS.LEGACY_CONTACTS, []);
+      if (legacy.length > 0) {
+        contacts = legacy;
+      }
+    }
+    const userContacts = contacts.filter(c => c.user_id === userId);
+    return userContacts.map(normalizeContactRecord);
   },
 
-  async saveEmergencyContact(userId, contact) {
-    if (!userId || !contact) return null;
+  async saveTrustedContact(userId, contact) {
+    if (!userId) {
+      throw new Error('User authentication required to save contact to Safety Circle.');
+    }
+    if (!contact || !contact.name || !contact.name.trim()) {
+      throw new Error('Contact name is required.');
+    }
+    if (!contact.phone || !contact.phone.trim()) {
+      throw new Error('Contact mobile number is required.');
+    }
+
     const now = new Date().toISOString();
+    const contactId = contact.id || `cnt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const relationship = (contact.relationship || contact.relation || 'Mother').trim();
+    const alertStatus = contact.alert_status || contact.alertStatus || 'active';
+    const isPrimary = Boolean(contact.is_primary ?? contact.isPrimary);
+    const avatarColor = contact.avatar_color || contact.avatarColor || '#6366F1';
+
     const newContact = {
-      id: contact.id || `cnt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: contactId,
       user_id: userId,
-      name: (contact.name || '').trim(),
-      phone: (contact.phone || '').trim(),
-      relation: contact.relation || 'Parent',
-      is_primary: Boolean(contact.isPrimary ?? contact.is_primary),
+      name: contact.name.trim(),
+      relationship,
+      relation: relationship,
+      phone: contact.phone.trim(),
+      email: contact.email ? contact.email.trim().toLowerCase() : '',
+      alert_status: alertStatus,
+      alertStatus,
+      is_primary: isPrimary,
+      isPrimary,
       priority: Number(contact.priority || 1),
-      avatar_color: contact.avatarColor || contact.avatar_color || '#6366F1',
+      avatar_color: avatarColor,
+      avatarColor,
       created_at: contact.created_at || now,
       updated_at: now
     };
@@ -357,48 +424,114 @@ export const databaseService = {
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
-          .from('emergency_contacts')
-          .upsert([newContact])
+          .from('trusted_contacts')
+          .upsert([{
+            id: newContact.id,
+            user_id: newContact.user_id,
+            name: newContact.name,
+            relationship: newContact.relationship,
+            phone: newContact.phone,
+            email: newContact.email || null,
+            alert_status: newContact.alert_status,
+            is_primary: newContact.is_primary,
+            priority: newContact.priority,
+            avatar_color: newContact.avatar_color,
+            created_at: newContact.created_at,
+            updated_at: newContact.updated_at
+          }])
           .select()
           .single();
         if (!error && data) {
-          localDb.dispatchChangeEvent('emergency_contacts', 'UPSERT', data);
-          return data;
+          const normalized = normalizeContactRecord(data);
+          localDb.dispatchChangeEvent('trusted_contacts', 'UPSERT', normalized);
+          return normalized;
+        }
+
+        // Fallback to emergency_contacts table if trusted_contacts is pending
+        const { data: fbData, error: fbError } = await supabase
+          .from('emergency_contacts')
+          .upsert([{
+            id: newContact.id,
+            user_id: newContact.user_id,
+            name: newContact.name,
+            phone: newContact.phone,
+            relation: newContact.relationship,
+            is_primary: newContact.is_primary,
+            priority: newContact.priority,
+            avatar_color: newContact.avatar_color,
+            created_at: newContact.created_at,
+            updated_at: newContact.updated_at
+          }])
+          .select()
+          .single();
+        if (!fbError && fbData) {
+          const normalized = normalizeContactRecord(fbData);
+          localDb.dispatchChangeEvent('trusted_contacts', 'UPSERT', normalized);
+          return normalized;
         }
       } catch (err) {
-        console.warn('Supabase saveEmergencyContact failed:', err);
+        console.warn('Supabase saveTrustedContact failed, persisting to local store:', err);
       }
     }
 
-    const contacts = localDb.readTable(STORAGE_KEYS.CONTACTS, []);
-    const idx = contacts.findIndex(c => c.id === newContact.id);
+    const contacts = localDb.readTable(STORAGE_KEYS.TRUSTED_CONTACTS, []);
+    const idx = contacts.findIndex(c => c.id === newContact.id && c.user_id === userId);
     if (idx !== -1) {
       contacts[idx] = newContact;
     } else {
+      // If marking as primary, demote any other contact for this specific user
+      if (newContact.is_primary) {
+        contacts.forEach(c => {
+          if (c.user_id === userId && c.id !== newContact.id) {
+            c.is_primary = false;
+            c.isPrimary = false;
+          }
+        });
+      }
       contacts.push(newContact);
     }
-    localDb.writeTable(STORAGE_KEYS.CONTACTS, contacts);
-    localDb.dispatchChangeEvent('emergency_contacts', 'UPSERT', newContact);
+    localDb.writeTable(STORAGE_KEYS.TRUSTED_CONTACTS, contacts);
+    localDb.dispatchChangeEvent('trusted_contacts', 'UPSERT', newContact);
     return newContact;
   },
 
-  async deleteEmergencyContact(contactId) {
+  async deleteTrustedContact(userId, contactId) {
     if (!contactId) return;
     if (isSupabaseConfigured() && supabase) {
       try {
-        await supabase
-          .from('emergency_contacts')
-          .delete()
-          .eq('id', contactId);
+        let query = supabase.from('trusted_contacts').delete().eq('id', contactId);
+        if (userId) query = query.eq('user_id', userId);
+        await query;
+
+        // Also clean from fallback emergency_contacts
+        await supabase.from('emergency_contacts').delete().eq('id', contactId);
       } catch (err) {
-        console.warn('Supabase deleteEmergencyContact failed:', err);
+        console.warn('Supabase deleteTrustedContact failed:', err);
       }
     }
 
-    const contacts = localDb.readTable(STORAGE_KEYS.CONTACTS, []);
-    const filtered = contacts.filter(c => c.id !== contactId);
-    localDb.writeTable(STORAGE_KEYS.CONTACTS, filtered);
-    localDb.dispatchChangeEvent('emergency_contacts', 'DELETE', { id: contactId });
+    const contacts = localDb.readTable(STORAGE_KEYS.TRUSTED_CONTACTS, []);
+    const filtered = contacts.filter(c => {
+      if (c.id !== contactId) return true;
+      if (userId && c.user_id !== userId) return true; // Do not delete another user's contact!
+      return false;
+    });
+    localDb.writeTable(STORAGE_KEYS.TRUSTED_CONTACTS, filtered);
+    localDb.dispatchChangeEvent('trusted_contacts', 'DELETE', { id: contactId, userId });
+    return true;
+  },
+
+  // Backwards compatibility aliases for existing features
+  async getEmergencyContacts(userId) {
+    return this.getTrustedContacts(userId);
+  },
+
+  async saveEmergencyContact(userId, contact) {
+    return this.saveTrustedContact(userId, contact);
+  },
+
+  async deleteEmergencyContact(contactId, userId = null) {
+    return this.deleteTrustedContact(userId, contactId);
   },
 
   // ----------------------------------------------------------------------------
@@ -837,4 +970,12 @@ export const databaseService = {
     localDb.writeTable(STORAGE_KEYS.ACTIVITY, filtered);
     localDb.dispatchChangeEvent('user_activity_timestamps', 'DELETE', { userId });
   }
+};
+
+/**
+ * Global helper function for future SOS / Safe Journey modules to fetch
+ * verified trusted contacts for an authenticated user.
+ */
+export const getTrustedContacts = async (currentUserId) => {
+  return databaseService.getTrustedContacts(currentUserId);
 };

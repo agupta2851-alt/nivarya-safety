@@ -7,7 +7,7 @@
  * Supabase Auth, AWS Cognito, or an enterprise OIDC/OAuth2 server.
  */
 
-import { databaseService } from './databaseService';
+import { databaseService } from './databaseService.js';
 
 const AUTH_USERS_KEY = 'nivarya_auth_users';
 const AUTH_SESSION_KEY = 'nivarya_auth_session';
