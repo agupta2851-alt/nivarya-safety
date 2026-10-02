@@ -853,6 +853,7 @@ export function AppProvider({ children }) {
     try {
       localStorage.setItem(`nivarya_track_${token}`, JSON.stringify(sessionData));
     } catch (e) { /* ignore */ }
+    databaseService.saveTrackingSession(sessionData).catch(() => {});
     return sessionData;
   };
 
@@ -1192,6 +1193,22 @@ export function AppProvider({ children }) {
           }).catch(() => {});
         }
 
+        const activeTrackToken = prev.trackingId || currentTrackingId;
+        if (activeTrackToken) {
+          databaseService.updateTrackingLocation(activeTrackToken, newCoords, {
+            progress: updatedProgress,
+            etaMinutes: updatedEtaMinutes,
+            etaDisplay: updatedEtaDisplay,
+            distanceTraveledKm: newDistanceTraveledKm,
+            remainingDistanceKm: remainingKm,
+            currentSpeedKmh: Number(avgSpeedKmh.toFixed(1)),
+            batteryLevel: batteryLevel
+          }).catch(() => {});
+          if (isArrivedNow) {
+            databaseService.endTrackingSession(activeTrackToken, 'ARRIVED').catch(() => {});
+          }
+        }
+
         return {
           ...prev,
           status: nextStatus,
@@ -1295,6 +1312,7 @@ export function AppProvider({ children }) {
 
     const journeyObj = {
       id: journeyId,
+      trackingId: journeyToken,
       status: 'ACTIVE',
       isActive: true,
       startPoint: routeDetails.startPoint || 'Current Location',
@@ -1339,6 +1357,34 @@ export function AppProvider({ children }) {
         destCoords: destCoords,
         distanceTraveledKm: 0
       });
+
+      await databaseService.saveTrackingSession({
+        trackingId: journeyToken,
+        journeyId: journeyId,
+        userId: userProfile?.id || null,
+        userName: userProfile.name || 'Nivarya Member',
+        userPhone: userProfile.phone || '',
+        status: 'ACTIVE',
+        isActive: true,
+        startPoint: journeyObj.startPoint,
+        destination: journeyObj.destination,
+        mode: journeyObj.mode,
+        progress: 0,
+        etaMinutes: initialEta,
+        etaDisplay: 'ETA calculating...',
+        startCoords: startObj,
+        currentCoords: startObj,
+        destCoords: destCoords,
+        distanceTraveledKm: 0,
+        remainingDistanceKm: initialRemainingKm,
+        currentSpeedKmh: 0,
+        batteryLevel: batteryLevel,
+        accuracy: startObj.accuracy ? `GPS (±${startObj.accuracy}m)` : 'Real GPS Lock Active',
+        source: locationState.source || 'gps',
+        startedAt: journeyObj.startTime,
+        lastUpdated: new Date().toISOString()
+      });
+
       refreshPlatformStats();
     } catch (e) {
       console.warn('Failed to record journey in database:', e);
@@ -1445,6 +1491,8 @@ export function AppProvider({ children }) {
 
     try {
       if (jId) await databaseService.cancelJourney(jId);
+      const trackToken = activeJourney.trackingId || currentTrackingId;
+      if (trackToken) await databaseService.endTrackingSession(trackToken, 'CANCELLED');
       refreshPlatformStats();
     } catch (e) {
       console.warn('Failed to cancel journey in database:', e);
@@ -1477,6 +1525,8 @@ export function AppProvider({ children }) {
 
     try {
       if (jId) await databaseService.completeJourney(jId);
+      const trackToken = activeJourney.trackingId || currentTrackingId;
+      if (trackToken) await databaseService.endTrackingSession(trackToken, 'ARRIVED');
       refreshPlatformStats();
     } catch (e) {
       console.warn('Failed to complete journey in database:', e);
@@ -1489,6 +1539,145 @@ export function AppProvider({ children }) {
       details: `Arrived safely at ${activeJourney.destination || 'Destination'}. Automated tracking disengaged.`,
       status: 'Completed Safely'
     });
+  };
+
+  /**
+   * Generates or retrieves the real tracking URL and session for the active journey.
+   * If a journey is already active, binds its tracking token.
+   * If no journey is active, initializes an active live tracking session from current GPS coordinates.
+   */
+  const getOrCreateActiveJourneyTracking = async (contactName = 'Guardian') => {
+    let effectiveJourney = activeJourney;
+
+    if (!effectiveJourney || !effectiveJourney.isActive) {
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const journeyToken = generateTrackingId();
+      const journeyId = `jrn-${Date.now()}`;
+
+      const userCoords = locationState?.coords || currentCoordinates;
+      const startAddress = locationState?.address || currentCoordinates?.address || (userProfile?.location ? `${userProfile.location}, ${userProfile.city}` : 'Current GPS Location');
+      const startObj = {
+        lat: userCoords?.lat || null,
+        lng: userCoords?.lng || null,
+        accuracy: userCoords?.accuracy || 10,
+        address: startAddress,
+        timestamp: Date.now()
+      };
+
+      const newJourney = {
+        id: journeyId,
+        trackingId: journeyToken,
+        status: 'ACTIVE',
+        isActive: true,
+        startPoint: startAddress,
+        destination: `Safe Check with ${contactName}`,
+        mode: 'walk',
+        progress: 0,
+        startTime: new Date().toISOString(),
+        etaMinutes: 20,
+        etaDisplay: '~20 mins',
+        checkinsCount: 0,
+        lastCheckinTime: nowTime,
+        isPaused: false,
+        startCoords: startObj,
+        currentCoords: startObj,
+        destCoords: null,
+        distanceTraveledKm: 0,
+        remainingDistanceKm: null,
+        currentSpeedKmh: 0,
+        movementState: 'INITIALIZING',
+        trackingType: 'Real GPS Live Tracking',
+        lastMovementTimestamp: Date.now()
+      };
+
+      setActiveJourney(newJourney);
+      setCurrentTrackingId(journeyToken);
+      setShareToken(journeyToken);
+      setIsSharingLocation(true);
+      setSharingDuration('journey');
+
+      const sessionData = {
+        trackingId: journeyToken,
+        journeyId: journeyId,
+        userId: userProfile?.id || null,
+        userName: userProfile.name || 'Nivarya Member',
+        contactName: contactName,
+        userPhone: userProfile.phone || '',
+        status: 'ACTIVE',
+        isActive: true,
+        startPoint: newJourney.startPoint,
+        destination: newJourney.destination,
+        mode: newJourney.mode,
+        progress: 0,
+        etaMinutes: 20,
+        etaDisplay: '~20 mins',
+        startCoords: startObj,
+        currentCoords: startObj,
+        destCoords: null,
+        distanceTraveledKm: 0,
+        remainingDistanceKm: null,
+        currentSpeedKmh: 0,
+        batteryLevel: batteryLevel,
+        accuracy: startObj.lat != null ? `GPS (±${startObj.accuracy}m)` : 'Real GPS Lock Active',
+        source: locationState.source || 'gps',
+        startedAt: newJourney.startTime,
+        lastUpdated: new Date().toISOString()
+      };
+
+      await databaseService.saveTrackingSession(sessionData);
+
+      if (typeof navigator !== 'undefined' && navigator.geolocation && !locationState?.coords) {
+        requestGpsLocation().catch(() => {});
+      }
+
+      effectiveJourney = newJourney;
+    } else {
+      const trackingId = effectiveJourney.trackingId || currentTrackingId || generateTrackingId();
+      if (!effectiveJourney.trackingId) {
+        effectiveJourney = { ...effectiveJourney, trackingId };
+        setActiveJourney(effectiveJourney);
+      }
+      setCurrentTrackingId(trackingId);
+      setShareToken(trackingId);
+
+      const sessionData = {
+        trackingId: trackingId,
+        journeyId: effectiveJourney.id,
+        userId: userProfile?.id || null,
+        userName: userProfile.name || 'Nivarya Member',
+        contactName: contactName,
+        userPhone: userProfile.phone || '',
+        status: effectiveJourney.status || 'ACTIVE',
+        isActive: true,
+        startPoint: effectiveJourney.startPoint,
+        destination: effectiveJourney.destination,
+        mode: effectiveJourney.mode,
+        progress: effectiveJourney.progress || 0,
+        etaMinutes: effectiveJourney.etaMinutes,
+        etaDisplay: effectiveJourney.etaDisplay || 'ETA calculating...',
+        startCoords: effectiveJourney.startCoords || currentCoordinates,
+        currentCoords: effectiveJourney.currentCoords || currentCoordinates,
+        destCoords: effectiveJourney.destCoords,
+        distanceTraveledKm: effectiveJourney.distanceTraveledKm || 0,
+        remainingDistanceKm: effectiveJourney.remainingDistanceKm,
+        currentSpeedKmh: effectiveJourney.currentSpeedKmh || 0,
+        batteryLevel: batteryLevel,
+        accuracy: locationState.coords ? `GPS (±${locationState.coords.accuracy}m)` : (currentCoordinates?.accuracy || 'Active GPS'),
+        source: locationState.source || 'gps',
+        startedAt: effectiveJourney.startTime || new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      };
+
+      await databaseService.saveTrackingSession(sessionData);
+    }
+
+    const finalTrackingId = effectiveJourney.trackingId || currentTrackingId;
+    const trackingUrl = buildTrackingUrl(finalTrackingId);
+    return {
+      trackingId: finalTrackingId,
+      trackingUrl,
+      journey: effectiveJourney
+    };
   };
 
   // SOS Emergency Modal & Protocol
@@ -2085,6 +2274,7 @@ export function AppProvider({ children }) {
         resumeJourney,
         cancelJourney,
         endJourney,
+        getOrCreateActiveJourneyTracking,
 
         // SOS & Emergency
         isSosModalOpen,

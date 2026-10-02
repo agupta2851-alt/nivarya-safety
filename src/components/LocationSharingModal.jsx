@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { buildTrackingUrl } from '../utils/tracking';
+import { buildTrackingUrl, shareOrCopyTrackingLink } from '../utils/tracking';
 import { 
   MapPin, 
   Clock, 
@@ -36,9 +36,20 @@ export default function LocationSharingModal({ isOpen, onClose }) {
   const trackingId = shareToken || currentTrackingId;
   const liveLink = buildTrackingUrl(trackingId);
 
-  const copyLiveLink = () => {
-    navigator.clipboard.writeText(liveLink);
-    showToast('Live tracking link copied to clipboard!', 'safe');
+  const copyLiveLink = async () => {
+    await shareOrCopyTrackingLink({
+      contactName: 'Trusted Guardian',
+      trackingUrl: liveLink,
+      onSheetOpened: () => {
+        showToast('Share sheet opened', 'safe');
+      },
+      onCopied: () => {
+        showToast('Tracking link copied. You can paste it into WhatsApp or Messages.', 'safe');
+      },
+      onError: () => {
+        showToast('Failed to copy tracking link', 'danger');
+      }
+    });
   };
 
   const shareViaWhatsApp = () => {

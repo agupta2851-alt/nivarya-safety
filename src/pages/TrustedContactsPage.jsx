@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { buildTrackingUrl } from '../utils/tracking';
+import { buildTrackingUrl, shareOrCopyTrackingLink } from '../utils/tracking';
 import { isValidEmail, isValidIndianMobile, normalizePhoneNumber } from '../services/authService';
 import { 
   Users, 
@@ -73,6 +73,7 @@ export default function TrustedContactsPage() {
     showToast,
     currentCoordinates,
     currentTrackingId,
+    getOrCreateActiveJourneyTracking,
     t 
   } = useApp();
 
@@ -205,13 +206,28 @@ export default function TrustedContactsPage() {
     showToast(`Initiating quick call to ${name} (${phone})`, 'info');
   };
 
-  const handleShareLocation = (name) => {
-    const trackingUrl = buildTrackingUrl(currentTrackingId);
-    const locationUrl = currentCoordinates?.lat != null 
-      ? `https://maps.google.com/?q=${currentCoordinates.lat},${currentCoordinates.lng}` 
-      : trackingUrl;
-    navigator.clipboard.writeText(locationUrl);
-    showToast(`Live tracking link copied to share with ${name}!`, 'safe');
+  const handleShareLiveTracking = async (contact) => {
+    try {
+      const contactName = contact?.name || 'Guardian';
+      const { trackingUrl } = await getOrCreateActiveJourneyTracking(contactName);
+
+      await shareOrCopyTrackingLink({
+        contactName,
+        trackingUrl,
+        onSheetOpened: () => {
+          showToast('Share sheet opened', 'safe');
+        },
+        onCopied: () => {
+          showToast('Tracking link copied. You can paste it into WhatsApp or Messages.', 'safe');
+        },
+        onError: () => {
+          showToast('Failed to share tracking link.', 'danger');
+        }
+      });
+    } catch (err) {
+      console.error('Error sharing live tracking:', err);
+      showToast('Could not initialize live tracking session.', 'danger');
+    }
   };
 
   return (
@@ -493,12 +509,14 @@ export default function TrustedContactsPage() {
                   </button>
 
                   <button 
+                    id={`share-live-tracking-btn-${contact.id}`}
                     className="btn btn-safe btn-sm"
-                    onClick={() => handleShareLocation(contact.name)}
-                    style={{ justifyContent: 'center' }}
+                    onClick={() => handleShareLiveTracking(contact)}
+                    style={{ justifyContent: 'center', whiteSpace: 'nowrap' }}
+                    title={`Share Live Tracking with ${contact.name}`}
                   >
                     <Share2 size={14} />
-                    <span>Share Loc</span>
+                    <span>Share Live Tracking</span>
                   </button>
                 </div>
               </div>

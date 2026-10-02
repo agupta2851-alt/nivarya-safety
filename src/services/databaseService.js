@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   SOS: 'nivarya_db_sos_events',
   REPORTS: 'nivarya_db_safety_reports',
   SAFETY_HUBS: 'nivarya_db_safety_locations',
-  ACTIVITY: 'nivarya_db_user_activity'
+  ACTIVITY: 'nivarya_db_user_activity',
+  TRACKING_SESSIONS: 'nivarya_db_tracking_sessions'
 };
 
 /**
@@ -696,6 +697,189 @@ export const databaseService = {
     localDb.writeTable(STORAGE_KEYS.LOCATIONS, locations);
     localDb.dispatchChangeEvent('live_location_updates', 'INSERT', record);
     return record;
+  },
+
+  // ----------------------------------------------------------------------------
+  // LIVE TRACKING SESSIONS (REAL GPS & CROSS-BROWSER/DEVICE RESILIENT)
+  // ----------------------------------------------------------------------------
+  async saveTrackingSession(sessionData) {
+    if (!sessionData || !sessionData.trackingId) return null;
+    const now = new Date().toISOString();
+    const cleanSession = {
+      trackingId: sessionData.trackingId,
+      journeyId: sessionData.journeyId || null,
+      userName: sessionData.userName || 'Nivarya Member',
+      contactName: sessionData.contactName || null,
+      userPhone: sessionData.userPhone || null,
+      status: sessionData.status || 'ACTIVE',
+      isActive: sessionData.isActive !== false,
+      startPoint: sessionData.startPoint || 'Current Location',
+      destination: sessionData.destination || 'Destination',
+      mode: sessionData.mode || 'cab',
+      progress: Number(sessionData.progress || 0),
+      etaMinutes: sessionData.etaMinutes != null ? Number(sessionData.etaMinutes) : null,
+      etaDisplay: sessionData.etaDisplay || 'ETA calculating...',
+      startCoords: sessionData.startCoords || null,
+      currentCoords: sessionData.currentCoords || null,
+      destCoords: sessionData.destCoords || null,
+      distanceTraveledKm: Number(sessionData.distanceTraveledKm || 0),
+      remainingDistanceKm: sessionData.remainingDistanceKm != null ? Number(sessionData.remainingDistanceKm) : null,
+      currentSpeedKmh: Number(sessionData.currentSpeedKmh || 0),
+      batteryLevel: sessionData.batteryLevel != null ? Number(sessionData.batteryLevel) : null,
+      accuracy: sessionData.accuracy || 'GPS Lock Active',
+      source: sessionData.source || 'gps',
+      startedAt: sessionData.startedAt || now,
+      lastUpdated: now,
+      endedAt: sessionData.endedAt || null
+    };
+
+    // 1. Persist to local memory & localStorage for instant same-browser retrieval
+    try {
+      localStorage.setItem(`nivarya_track_${cleanSession.trackingId}`, JSON.stringify(cleanSession));
+    } catch (e) { /* ignore */ }
+
+    const sessions = localDb.readTable(STORAGE_KEYS.TRACKING_SESSIONS, {});
+    sessions[cleanSession.trackingId] = cleanSession;
+    localDb.writeTable(STORAGE_KEYS.TRACKING_SESSIONS, sessions);
+
+    // 2. Sync to dev API server for seamless cross-browser/cross-device local testing
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      try {
+        fetch(`${window.location.origin}/api/track/${encodeURIComponent(cleanSession.trackingId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cleanSession)
+        }).catch(() => {});
+      } catch (e) { /* ignore */ }
+    }
+
+    // 3. Sync to Supabase if live credentials present
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        await supabase
+          .from('journeys')
+          .upsert([{
+            id: cleanSession.journeyId || undefined,
+            user_id: sessionData.userId || null,
+            start_point: cleanSession.startPoint,
+            destination: cleanSession.destination,
+            mode: cleanSession.mode,
+            status: cleanSession.isActive ? 'active' : 'completed',
+            progress: cleanSession.progress,
+            eta_minutes: cleanSession.etaMinutes,
+            started_at: cleanSession.startedAt
+          }])
+          .catch(() => {});
+      } catch (err) { /* ignore */ }
+    }
+
+    localDb.dispatchChangeEvent('tracking_sessions', 'UPSERT', cleanSession);
+    return cleanSession;
+  },
+
+  async getTrackingSession(trackingId) {
+    if (!trackingId) return null;
+    const cleanId = trackingId.trim();
+
+    // 1. Check direct localStorage cache
+    try {
+      const directRaw = localStorage.getItem(`nivarya_track_${cleanId}`);
+      if (directRaw) {
+        const parsed = JSON.parse(directRaw);
+        if (parsed && parsed.trackingId) {
+          // Check remote dev server in background for newer updates
+          this.fetchRemoteTrackingSession(cleanId).catch(() => {});
+          return parsed;
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    // 2. Check local database table
+    const sessions = localDb.readTable(STORAGE_KEYS.TRACKING_SESSIONS, {});
+    if (sessions[cleanId]) {
+      return sessions[cleanId];
+    }
+
+    // 3. Attempt dev server API fetch
+    const remote = await this.fetchRemoteTrackingSession(cleanId);
+    if (remote) return remote;
+
+    return null;
+  },
+
+  async fetchRemoteTrackingSession(trackingId) {
+    if (typeof window === 'undefined' || !window.location?.origin) return null;
+    try {
+      const res = await fetch(`${window.location.origin}/api/track/${encodeURIComponent(trackingId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.session) {
+          try {
+            localStorage.setItem(`nivarya_track_${trackingId}`, JSON.stringify(data.session));
+          } catch (e) { /* ignore */ }
+          return data.session;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  },
+
+  async updateTrackingLocation(trackingId, coords, telemetry = {}) {
+    if (!trackingId) return null;
+    const session = await this.getTrackingSession(trackingId);
+    if (!session) return null;
+
+    const now = new Date().toISOString();
+    const updated = {
+      ...session,
+      currentCoords: coords ? {
+        lat: coords.lat,
+        lng: coords.lng,
+        accuracy: coords.accuracy || session.currentCoords?.accuracy || 10,
+        address: coords.address || session.currentCoords?.address || '',
+        timestamp: Date.now()
+      } : session.currentCoords,
+      progress: telemetry.progress != null ? telemetry.progress : session.progress,
+      etaMinutes: telemetry.etaMinutes != null ? telemetry.etaMinutes : session.etaMinutes,
+      etaDisplay: telemetry.etaDisplay || session.etaDisplay,
+      distanceTraveledKm: telemetry.distanceTraveledKm != null ? telemetry.distanceTraveledKm : session.distanceTraveledKm,
+      remainingDistanceKm: telemetry.remainingDistanceKm != null ? telemetry.remainingDistanceKm : session.remainingDistanceKm,
+      currentSpeedKmh: telemetry.currentSpeedKmh != null ? telemetry.currentSpeedKmh : session.currentSpeedKmh,
+      batteryLevel: telemetry.batteryLevel != null ? telemetry.batteryLevel : session.batteryLevel,
+      lastUpdated: now
+    };
+
+    return this.saveTrackingSession(updated);
+  },
+
+  async endTrackingSession(trackingId, reason = 'ARRIVED') {
+    if (!trackingId) return null;
+    const session = await this.getTrackingSession(trackingId);
+    const now = new Date().toISOString();
+
+    const endedSession = session ? {
+      ...session,
+      isActive: false,
+      status: reason === 'cancelled' || reason === 'CANCELLED' ? 'CANCELLED' : 'ARRIVED',
+      endedAt: now,
+      lastUpdated: now
+    } : {
+      trackingId,
+      isActive: false,
+      status: 'ARRIVED',
+      endedAt: now,
+      lastUpdated: now
+    };
+
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      try {
+        fetch(`${window.location.origin}/api/track/${encodeURIComponent(trackingId)}`, {
+          method: 'DELETE'
+        }).catch(() => {});
+      } catch (e) { /* ignore */ }
+    }
+
+    return this.saveTrackingSession(endedSession);
   },
 
   // ----------------------------------------------------------------------------
