@@ -75,7 +75,7 @@ export default function LoginPage() {
           location: user.location || '',
           bloodGroup: user.bloodGroup || '',
           emergencyNotes: user.emergencyNotes || '',
-          safetyPin: user.safetyPin || '1234',
+          safetyPin: user.safetyPin || '',
           isProfileComplete: Boolean(user.isProfileComplete)
         }));
       }
@@ -116,7 +116,9 @@ export default function LoginPage() {
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      setGeneralError(err.message || 'Google authentication failed.');
+      // Show as a gentle info notice, not a destructive error —
+      // Google OAuth is intentionally not configured in this prototype
+      setGeneralError(err.message || 'Google sign-in is not available. Please use email/password login.');
     } finally {
       setIsGoogleSubmitting(false);
     }
@@ -484,7 +486,21 @@ export default function LoginPage() {
             <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.94 0 12c0 2.06.46 3.84 1.26 5.42l4.02-3.15z"/>
             <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.27 2.61 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
           </svg>
-          <span>{isGoogleSubmitting ? 'Authenticating with Google...' : 'Continue with Google'}</span>
+          <span>
+            {isGoogleSubmitting
+              ? 'Checking Google...'
+              : 'Continue with Google'}
+          </span>
+          <span style={{
+            fontSize: '0.68rem',
+            background: 'rgba(255,165,0,0.18)',
+            color: '#FBB040',
+            borderRadius: '4px',
+            padding: '1px 6px',
+            fontWeight: 700,
+            letterSpacing: '0.04em',
+            marginLeft: '4px'
+          }}>Coming Soon</span>
         </button>
 
         {/* Quick Demo Login Option */}

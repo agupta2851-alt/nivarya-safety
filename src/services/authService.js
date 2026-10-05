@@ -374,7 +374,7 @@ export const authService = {
       location: '',
       bloodGroup: '',
       emergencyNotes: '',
-      safetyPin: '1234',
+      safetyPin: '',        // User must set their own PIN in profile setup
       emergencyContact: null,
       contacts: [],
       isProfileComplete: false,
@@ -406,6 +406,9 @@ export const authService = {
   /**
    * One-click demo login convenience for reviewers & development testing.
    * Clearly marked as DEMO, completely isolated from real user data.
+   * NOTE: Demo password is NOT stored in source code — it is generated
+   * as a random one-time token the first time demo login is created,
+   * and stored only in localStorage. Access is via this method only.
    */
   async quickDemoLogin() {
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -414,20 +417,23 @@ export const authService = {
     let user = users.find(u => u.email === demoEmail);
 
     if (!user) {
+      // Generate a random one-time demo token — never hardcoded in source
+      const randomToken = `demo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const hashedToken = await hashPassword(randomToken);
       user = {
         id: 'usr-demo-reviewer',
         name: 'Demo Reviewer',
         email: demoEmail,
         phone: '+91 98765 00001',
-        passwordHash: await hashPassword('DemoTester@2026'),
+        passwordHash: hashedToken,
         role: 'Verified Demo Tester',
         avatarUrl: null,
         age: '25',
         city: '',
         location: '',
         bloodGroup: 'O+ Positive',
-        emergencyNotes: 'Demo testing profile',
-        safetyPin: '1234',
+        emergencyNotes: 'Demo testing profile — no real personal data',
+        safetyPin: '',  // intentionally blank — must be set in profile setup
         emergencyContact: null,
         contacts: [],
         isProfileComplete: false,
@@ -449,47 +455,18 @@ export const authService = {
   },
 
   /**
-   * Simulated Google OAuth Sign-in.
+   * Simulated Google OAuth Sign-in (PROTOTYPE ONLY).
+   * In production, replace this with real Google OAuth via Firebase Auth,
+   * Supabase Auth, or a proper OIDC provider.
+   * This simulation does NOT verify any real Google identity.
    */
   async loginWithGoogle() {
     await new Promise(resolve => setTimeout(resolve, 350));
-    const googleEmail = 'google.user@example.com';
-    const users = getRegisteredUsers();
-    let user = users.find(u => u.email === googleEmail);
-
-    if (!user) {
-      user = {
-        id: `usr-google-${Date.now()}`,
-        name: 'Google Verified User',
-        email: googleEmail,
-        phone: '',
-        passwordHash: 'sso_google_verified',
-        role: 'Google Verified Member',
-        avatarUrl: null,
-        age: '',
-        city: '',
-        location: '',
-        bloodGroup: '',
-        emergencyNotes: '',
-        safetyPin: '1234',
-        emergencyContact: null,
-        contacts: [],
-        isProfileComplete: false,
-        createdAt: new Date().toISOString(),
-        provider: 'google'
-      };
-      users.push(user);
-      localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-    }
-
-    const { passwordHash: _, ...safeUser } = user;
-    const sessionUser = {
-      ...safeUser,
-      lastLoginAt: new Date().toISOString()
-    };
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(sessionUser));
-    window.dispatchEvent(new Event('storage'));
-    return sessionUser;
+    // Throw a clear error so users know this is not yet functional
+    throw new Error(
+      'Google Sign-In is not yet configured for this prototype. ' +
+      'Please register with your email and password, or use the Demo access option.'
+    );
   },
 
   /**

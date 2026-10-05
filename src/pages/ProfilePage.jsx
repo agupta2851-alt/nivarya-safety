@@ -52,7 +52,7 @@ export default function ProfilePage() {
   const [manualLocation, setManualLocationVal] = useState(userProfile.manualLocation || '');
   const [bloodGroup, setBloodGroup] = useState(userProfile.bloodGroup || 'O+ Positive');
   const [emergencyNotes, setEmergencyNotes] = useState(userProfile.emergencyNotes || '');
-  const [safetyPin, setSafetyPin] = useState(userProfile.safetyPin || '1234');
+  const [safetyPin, setSafetyPin] = useState(userProfile.safetyPin || '');
   const [sosDelay, setSosDelay] = useState(userProfile.sosDelay || 3);
   const [highAccuracyGps, setHighAccuracyGps] = useState(userProfile.highAccuracyGps !== false);
 
@@ -65,7 +65,7 @@ export default function ProfilePage() {
       setManualLocationVal(userProfile.manualLocation || '');
       setBloodGroup(userProfile.bloodGroup || 'O+ Positive');
       setEmergencyNotes(userProfile.emergencyNotes || '');
-      setSafetyPin(userProfile.safetyPin || '1234');
+      setSafetyPin(userProfile.safetyPin || '');
       if (userProfile.sosDelay != null) setSosDelay(userProfile.sosDelay);
     }
   }, [userProfile, currentUser]);
@@ -85,6 +85,10 @@ export default function ProfilePage() {
       sosDelay: Number(sosDelay),
       highAccuracyGps
     };
+    if (safetyPin.trim() && safetyPin.trim().length < 4) {
+      showToast('Safety PIN must be at least 4 digits.', 'danger');
+      return;
+    }
     try {
       if (typeof saveProfile === 'function') {
         await saveProfile(updated);

@@ -309,7 +309,7 @@ export const databaseService = {
       location: (profileData.location || profileData.address || '').trim(),
       blood_group: (profileData.blood_group || profileData.bloodGroup || '').trim(),
       emergency_notes: (profileData.emergency_notes || profileData.emergencyNotes || '').trim(),
-      safety_pin: profileData.safety_pin || profileData.safetyPin || '1234',
+      safety_pin: profileData.safety_pin || profileData.safetyPin || '',
       is_profile_complete: Boolean(profileData.is_profile_complete ?? profileData.isProfileComplete),
       updated_at: now,
       last_active_at: now,

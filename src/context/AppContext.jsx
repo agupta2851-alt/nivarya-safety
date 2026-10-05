@@ -153,19 +153,37 @@ export function AppProvider({ children }) {
     }
   };
 
+  // ─── Unified Realtime Subscription ──────────────────────────────────────────
+  // Single subscription handles ALL table events to avoid duplicate channels.
+  // Previously two separate subscribeToRealtimeUpdates calls were registered,
+  // causing doubled callbacks on every DB change.
   useEffect(() => {
     refreshPlatformStats();
     const unsub = databaseService.subscribeToRealtimeUpdates((evt) => {
+      const table = evt?.table;
+
+      // Stats refresh on any change
       refreshPlatformStats();
-      if (evt?.table === 'safety_reports') {
+
+      // Safety reports: reload community incidents
+      if (table === 'safety_reports') {
         databaseService.getSafetyReports().then(reps => {
-          if (reps) setIncidents(reps);
-        });
+          if (Array.isArray(reps)) setIncidents(reps);
+        }).catch(() => {});
+      }
+
+      // Contacts: reload for current user (handled here instead of a second subscription)
+      if (table === 'trusted_contacts' || table === 'emergency_contacts') {
+        const u = authService.getCurrentUser();
+        if (u?.id) {
+          loadUserContacts(u.id);
+        }
       }
     });
     return () => {
       if (typeof unsub === 'function') unsub();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // User Profile & Settings
@@ -186,7 +204,7 @@ export function AppProvider({ children }) {
               location: u.location || '',
               bloodGroup: u.bloodGroup || '',
               emergencyNotes: u.emergencyNotes || '',
-              safetyPin: u.safetyPin || '1234',
+              safetyPin: u.safetyPin || '',  // Must be user-set
               sosDelay: 3,
               autoAudioRecord: true,
               highAccuracyGps: true,
@@ -213,7 +231,7 @@ export function AppProvider({ children }) {
       location: '',
       bloodGroup: '',
       emergencyNotes: '',
-      safetyPin: '1234',
+      safetyPin: '',   // Must be set by user in profile setup
       sosDelay: 3,
       autoAudioRecord: true,
       highAccuracyGps: true,
@@ -295,20 +313,7 @@ export function AppProvider({ children }) {
     };
   }, [loadUserContacts]);
 
-  // Realtime subscription: updates Safety Circle instantly across tabs/clients without page reloads
-  useEffect(() => {
-    const unsubscribe = databaseService.subscribeToRealtimeUpdates((event) => {
-      if (event && (event.table === 'trusted_contacts' || event.table === 'emergency_contacts')) {
-        const u = authService.getCurrentUser();
-        if (u?.id) {
-          loadUserContacts(u.id);
-        }
-      }
-    });
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, [loadUserContacts]);
+  // (Contacts realtime reload is now handled inside the unified subscription above)
 
   const toggleContactSosSelection = (id) => {
     setSelectedContactsForSos(prev => 
@@ -455,7 +460,7 @@ export function AppProvider({ children }) {
             location: u.location || '',
             bloodGroup: u.bloodGroup || '',
             emergencyNotes: u.emergencyNotes || '',
-            safetyPin: u.safetyPin || '1234',
+            safetyPin: u.safetyPin || '',   // Must be user-set
             isProfileComplete: Boolean(u.isProfileComplete)
           }));
           if (u.id) {
@@ -476,7 +481,7 @@ export function AppProvider({ children }) {
             location: '',
             bloodGroup: '',
             emergencyNotes: '',
-            safetyPin: '1234',
+            safetyPin: '',   // Reset on logout
             sosDelay: 3,
             autoAudioRecord: true,
             highAccuracyGps: true,
@@ -667,7 +672,7 @@ export function AppProvider({ children }) {
       location: user.location || prev.location || '',
       bloodGroup: user.bloodGroup || prev.bloodGroup || '',
       emergencyNotes: user.emergencyNotes || prev.emergencyNotes || '',
-      safetyPin: user.safetyPin || prev.safetyPin || '1234',
+      safetyPin: user.safetyPin || prev.safetyPin || '',  // Must be user-set
       isProfileComplete: Boolean(user.isProfileComplete)
     }));
 
@@ -779,7 +784,7 @@ export function AppProvider({ children }) {
       city: profileData.city !== undefined ? profileData.city.trim() : (userProfile.city || ''),
       location: profileData.location !== undefined ? profileData.location.trim() : (profileData.address !== undefined ? profileData.address.trim() : (userProfile.location || '')),
       manualLocation: profileData.manualLocation !== undefined ? profileData.manualLocation.trim() : (userProfile.manualLocation || ''),
-      safetyPin: profileData.safetyPin !== undefined ? profileData.safetyPin.trim() : (userProfile.safetyPin || '1234'),
+      safetyPin: profileData.safetyPin !== undefined ? profileData.safetyPin.trim() : (userProfile.safetyPin || ''),
       bloodGroup: profileData.bloodGroup !== undefined ? profileData.bloodGroup : (userProfile.bloodGroup || ''),
       emergencyNotes: profileData.emergencyNotes !== undefined ? profileData.emergencyNotes.trim() : (profileData.medicalNotes !== undefined ? profileData.medicalNotes.trim() : (userProfile.emergencyNotes || '')),
       sosDelay: profileData.sosDelay !== undefined ? Number(profileData.sosDelay) : (userProfile.sosDelay ?? 3),
@@ -999,6 +1004,17 @@ export function AppProvider({ children }) {
   const journeyWatchIdRef = useRef(null);
   const journeyMovementHistoryRef = useRef([]);
 
+  // Refs to hold latest values for use inside watchPosition callback
+  // without needing to re-register the watcher on every state change (stale closure fix)
+  const locationStateRef = useRef(null);
+  const batteryLevelRef = useRef(null);
+  const currentTrackingIdRef = useRef(null);
+
+  // Keep refs in sync with latest state
+  useEffect(() => { locationStateRef.current = locationState; }, [locationState]);
+  useEffect(() => { batteryLevelRef.current = batteryLevel; }, [batteryLevel]);
+  useEffect(() => { currentTrackingIdRef.current = currentTrackingId; }, [currentTrackingId]);
+
   // Continuously watch user's real location with geolocation.watchPosition() when journey is active
   useEffect(() => {
     if (!activeJourney.isActive) {
@@ -1038,16 +1054,38 @@ export function AppProvider({ children }) {
       try {
         const sessionRaw = localStorage.getItem('nivarya_auth_session');
         const u = sessionRaw ? JSON.parse(sessionRaw) : null;
-        databaseService.recordLiveLocation({
+        // Read latest values via refs to avoid stale closures
+        const latestLocState = locationStateRef.current;
+        const latestBattery = batteryLevelRef.current;
+        const latestTrackId = currentTrackingIdRef.current;
+        const locationPayload = {
           userId: u?.id || null,
           journeyId: activeJourney?.id || null,
           coords: newCoords,
           source: 'gps',
-          address: locationState.address || 'Real-time GPS Location',
-          city: locationState.city || '',
-          batteryLevel,
-          trackingToken: currentTrackingId
-        });
+          address: latestLocState?.address || 'Real-time GPS Location',
+          city: latestLocState?.city || '',
+          batteryLevel: latestBattery,
+          trackingToken: latestTrackId
+        };
+        // Always write to localStorage immediately (databaseService fallback handles this)
+        databaseService.recordLiveLocation(locationPayload);
+
+        // Bug 2 fix: If offline, queue the latest location for Supabase sync on reconnect.
+        // navigator.onLine is always real-time — safe to read directly inside GPS callback.
+        // We replace any existing pending location item (not append) to prevent queue bloat
+        // from high-frequency GPS pings. Only the latest position matters on reconnect.
+        if (!navigator.onLine) {
+          setOfflineQueue(prev => {
+            const withoutPrevLocation = prev.filter(q => q.type !== 'location');
+            return [{
+              id: `q-loc-${Date.now()}`,
+              type: 'location',
+              data: locationPayload,
+              timestamp: new Date().toISOString()
+            }, ...withoutPrevLocation];
+          });
+        }
       } catch (e) { /* ignore */ }
 
       // 3. Process movement detection against GPS jitter threshold
@@ -1193,7 +1231,7 @@ export function AppProvider({ children }) {
           }).catch(() => {});
         }
 
-        const activeTrackToken = prev.trackingId || currentTrackingId;
+        const activeTrackToken = prev.trackingId || currentTrackingIdRef.current;
         if (activeTrackToken) {
           databaseService.updateTrackingLocation(activeTrackToken, newCoords, {
             progress: updatedProgress,
@@ -1202,7 +1240,7 @@ export function AppProvider({ children }) {
             distanceTraveledKm: newDistanceTraveledKm,
             remainingDistanceKm: remainingKm,
             currentSpeedKmh: Number(avgSpeedKmh.toFixed(1)),
-            batteryLevel: batteryLevel
+            batteryLevel: batteryLevelRef.current
           }).catch(() => {});
           if (isArrivedNow) {
             databaseService.endTrackingSession(activeTrackToken, 'ARRIVED').catch(() => {});
@@ -1717,20 +1755,82 @@ export function AppProvider({ children }) {
       if (isSirenOn) {
         startEmergencySiren();
       }
-      // Record SOS event into database architecture
+      // ─── SOS Event: Write-Local-First, Never Drop ─────────────────────────────
+      // Strategy:
+      //   1. Build event record with a stable ID immediately.
+      //   2. Persist to localStorage right away — regardless of network state.
+      //   3. If online: attempt backend sync. On success, mark local record synced.
+      //   4. If offline OR backend fails: push to offlineQueue for auto-retry.
+      //   5. Never show "sent to backend" unless the backend actually confirmed it.
+      const sosEventId = `sos-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const sosEventPayload = {
+        id: sosEventId,
+        userId: userProfile?.id || null,
+        triggerType: 'button',
+        coords: currentCoordinates,
+        address: currentCoordinates?.address || '',
+        journeyId: activeJourney?.id || null,
+        timeline: [
+          { time: new Date().toLocaleTimeString(), title: 'One-Tap SOS Emergency Broadcast Activated', status: 'High Alert' },
+          { time: new Date().toLocaleTimeString(), title: `GPS transmitted to ${selectedContactsForSos.length} guardians`, status: 'Queued' }
+        ]
+      };
+
+      // Step 1: Persist locally immediately — never depends on network
       try {
-        databaseService.createSosEvent({
-          userId: userProfile?.id || null,
-          triggerType: 'button',
-          coords: currentCoordinates,
-          address: currentCoordinates.address,
-          timeline: [
-            { time: new Date().toLocaleTimeString(), title: 'One-Tap SOS Emergency Broadcast Activated', status: 'High Alert' },
-            { time: new Date().toLocaleTimeString(), title: `GPS Transmitted to ${selectedContactsForSos.length} Guardians`, status: 'Delivered' }
-          ]
-        }).then(() => refreshPlatformStats()).catch(() => {});
-      } catch (e) {
-        console.warn('Database SOS event record failed:', e);
+        const existingEvents = JSON.parse(localStorage.getItem('nivarya_db_sos_events') || '[]');
+        existingEvents.unshift({
+          ...sosEventPayload,
+          user_id: sosEventPayload.userId,
+          latitude: currentCoordinates?.lat || null,
+          longitude: currentCoordinates?.lng || null,
+          triggered_at: new Date().toISOString(),
+          status: 'active',
+          sync_status: 'pending_sync',   // honest: not yet confirmed by backend
+          disarmed_at: null
+        });
+        localStorage.setItem('nivarya_db_sos_events', JSON.stringify(existingEvents));
+      } catch (_e) { /* storage full — ignore, queue still works */ }
+
+      // Step 2: Try backend sync if online
+      const isCurrentlyOnline = typeof navigator !== 'undefined' ? navigator.onLine : false;
+      if (isCurrentlyOnline) {
+        databaseService.createSosEvent(sosEventPayload)
+          .then(() => {
+            // Backend confirmed — update local record to synced
+            try {
+              const evts = JSON.parse(localStorage.getItem('nivarya_db_sos_events') || '[]');
+              const idx = evts.findIndex(e => e.id === sosEventId);
+              if (idx !== -1) { evts[idx].sync_status = 'synced'; }
+              localStorage.setItem('nivarya_db_sos_events', JSON.stringify(evts));
+            } catch (_e) { /* ignore */ }
+            refreshPlatformStats();
+          })
+          .catch(() => {
+            // Online but sync failed — queue for retry
+            setOfflineQueue(prev => {
+              const alreadyQueued = prev.some(q => q.data?.id === sosEventId);
+              if (alreadyQueued) return prev;  // deduplication guard
+              return [{
+                id: `q-${sosEventId}`,
+                type: 'sos',
+                data: sosEventPayload,
+                timestamp: new Date().toISOString()
+              }, ...prev];
+            });
+          });
+      } else {
+        // Step 3: Offline — queue immediately, no need to attempt backend
+        setOfflineQueue(prev => {
+          const alreadyQueued = prev.some(q => q.data?.id === sosEventId);
+          if (alreadyQueued) return prev;  // deduplication guard
+          return [{
+            id: `q-${sosEventId}`,
+            type: 'sos',
+            data: sosEventPayload,
+            timestamp: new Date().toISOString()
+          }, ...prev];
+        });
       }
 
       // Log emergency steps in timeline
@@ -1772,7 +1872,15 @@ export function AppProvider({ children }) {
   };
 
   const disarmSos = (enteredPin) => {
-    if (enteredPin === userProfile.safetyPin || enteredPin === '1234') {
+    const activePin = userProfile.safetyPin;
+
+    // If the user has not set a Safety PIN, block disarm and prompt them to set one
+    if (!activePin || activePin.trim() === '') {
+      showToast('No Safety PIN set. Please go to your Profile and set a Safety PIN to disarm SOS.', 'danger');
+      return false;
+    }
+
+    if (enteredPin === activePin) {
       stopEmergencySiren();
       setSosPhase('idle');
       setIsSosModalOpen(false);
@@ -1789,7 +1897,7 @@ export function AppProvider({ children }) {
       });
       return true;
     } else {
-      showToast('Incorrect Safety PIN. Default PIN is 1234.', 'danger');
+      showToast('Incorrect Safety PIN. Please enter the PIN you set in your profile.', 'danger');
       return false;
     }
   };
@@ -1865,7 +1973,7 @@ export function AppProvider({ children }) {
   };
 
   // Offline Mode & Queue
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [offlineQueue, setOfflineQueue] = useState(() => {
     const saved = localStorage.getItem('nivarya_offline_queue');
     if (saved) {
@@ -1874,11 +1982,19 @@ export function AppProvider({ children }) {
     return [];
   });
 
+  // Ref to always access the latest offlineQueue inside event listeners (avoids stale closure)
+  const offlineQueueRef = useRef([]);
+  useEffect(() => { offlineQueueRef.current = offlineQueue; }, [offlineQueue]);
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      showToast('Internet connection restored! Syncing offline emergency queue...', 'safe');
-      syncOfflineQueue();
+      if (offlineQueueRef.current.length > 0) {
+        showToast('Internet restored! Syncing offline emergency queue...', 'safe');
+        syncOfflineQueue();
+      } else {
+        showToast('Internet connection restored.', 'safe');
+      }
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -1892,7 +2008,8 @@ export function AppProvider({ children }) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [offlineQueue]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('nivarya_offline_queue', JSON.stringify(offlineQueue));
@@ -1917,10 +2034,45 @@ export function AppProvider({ children }) {
     showToast('SOS cached locally in offline queue. Will auto-sync once connected.', 'info');
   };
 
-  const syncOfflineQueue = () => {
+  const syncOfflineQueue = async () => {
     if (offlineQueue.length === 0) return;
-    showToast(`Successfully dispatched ${offlineQueue.length} pending offline alert(s)!`, 'safe');
-    setOfflineQueue([]);
+
+    const total = offlineQueue.length;
+    let successCount = 0;
+    const failedItems = [];
+
+    for (const item of offlineQueue) {
+      try {
+        if (item.type === 'sos') {
+          await databaseService.createSosEvent(item.data);
+          successCount++;
+        } else if (item.type === 'report') {
+          await databaseService.submitSafetyReport(item.data);
+          successCount++;
+        } else if (item.type === 'location') {
+          await databaseService.recordLiveLocation(item.data);
+          successCount++;
+        } else {
+          // Unknown type — drop it silently
+          successCount++;
+        }
+      } catch (err) {
+        console.warn(`Failed to sync offline queue item [${item.type}]:`, err);
+        failedItems.push(item);
+      }
+    }
+
+    setOfflineQueue(failedItems);
+
+    if (successCount > 0) {
+      showToast(
+        failedItems.length > 0
+          ? `Synced ${successCount}/${total} offline alert(s). ${failedItems.length} will retry.`
+          : `Successfully dispatched all ${successCount} offline alert(s)!`,
+        failedItems.length > 0 ? 'info' : 'safe'
+      );
+      refreshPlatformStats();
+    }
   };
 
   // Automatic Evidence Recording
@@ -2179,7 +2331,45 @@ export function AppProvider({ children }) {
   };
 
   const purgeAllUserData = () => {
-    localStorage.clear();
+    // Only remove Nivarya-specific keys — do NOT nuke all localStorage
+    // (other apps/tabs sharing the same origin would also be affected by clear())
+    const nivarya_keys = [
+      'nivarya_auth_session',
+      'nivarya_auth_users',
+      'nivarya_profile',
+      'nivarya_contacts',
+      'nivarya_db_trusted_contacts',
+      'nivarya_db_emergency_contacts',
+      'nivarya_db_profiles',
+      'nivarya_db_journeys',
+      'nivarya_db_live_locations',
+      'nivarya_db_sos_events',
+      'nivarya_db_safety_reports',
+      'nivarya_db_safety_locations',
+      'nivarya_db_user_activity',
+      'nivarya_db_tracking_sessions',
+      'nivarya_location_state',
+      'nivarya_journey',
+      'nivarya_incidents',
+      'nivarya_evidence',
+      'nivarya_history',
+      'nivarya_offline_queue',
+      'nivarya_privacy',
+      'nivarya_lang',
+      'nivarya_safety_mode',
+      'nivarya_voice_sos',
+      'nivarya_trigger_phrase',
+      'nivarya_gesture_sos'
+    ];
+    nivarya_keys.forEach(key => {
+      try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+    });
+    // Also purge any dynamic tracking session keys
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('nivarya_track_')) {
+        try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+      }
+    });
     showToast('All personal safety data purged securely. Restoring default profile...', 'info');
     setTimeout(() => {
       window.location.reload();
