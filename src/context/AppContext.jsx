@@ -7,7 +7,7 @@ import {
   safetyModesData 
 } from '../data/initialData';
 import { playCountdownBeep, startEmergencySiren, stopEmergencySiren } from '../utils/audio';
-import { generateTrackingId } from '../utils/tracking';
+import { generateTrackingId, buildTrackingUrl } from '../utils/tracking';
 import { authService, normalizePhoneNumber } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import { 
