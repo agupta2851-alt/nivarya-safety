@@ -510,6 +510,37 @@ export function AppProvider({ children }) {
     return () => window.removeEventListener('storage', handleAuthSync);
   }, []);
 
+  // Real Battery Detection with Device Battery Status API
+  const [batteryLevel, setBatteryLevel] = useState(null);
+  const [isLowBatteryMode, setIsLowBatteryMode] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
+      navigator.getBattery().then(battery => {
+        const level = Math.round(battery.level * 100);
+        setBatteryLevel(level);
+        if (level < 20) setIsLowBatteryMode(true);
+
+        const handleLevel = () => {
+          const updated = Math.round(battery.level * 100);
+          setBatteryLevel(updated);
+          if (updated < 20) setIsLowBatteryMode(true);
+        };
+        battery.addEventListener('levelchange', handleLevel);
+      }).catch(() => {
+        setBatteryLevel(null);
+      });
+    }
+  }, []);
+
+  const toggleLowBatteryMode = () => {
+    setIsLowBatteryMode(prev => {
+      const next = !prev;
+      showToast(next ? 'Battery-Aware Emergency Mode enabled: Minimal UI, maximum GPS preservation' : 'Standard power profile restored', 'info');
+      return next;
+    });
+  };
+
   const [isLocationConsentModalOpen, setIsLocationConsentModalOpen] = useState(false);
 
   // Request browser Geolocation with explicit user permission
@@ -2134,37 +2165,6 @@ export function AppProvider({ children }) {
   const deleteEvidence = (id) => {
     setRecordedEvidenceList(prev => prev.filter(e => e.id !== id));
     showToast('Evidence file removed from local cache', 'info');
-  };
-
-  // Real Battery Detection with Device Battery Status API
-  const [batteryLevel, setBatteryLevel] = useState(null);
-  const [isLowBatteryMode, setIsLowBatteryMode] = useState(false);
-
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'getBattery' in navigator) {
-      navigator.getBattery().then(battery => {
-        const level = Math.round(battery.level * 100);
-        setBatteryLevel(level);
-        if (level < 20) setIsLowBatteryMode(true);
-
-        const handleLevel = () => {
-          const updated = Math.round(battery.level * 100);
-          setBatteryLevel(updated);
-          if (updated < 20) setIsLowBatteryMode(true);
-        };
-        battery.addEventListener('levelchange', handleLevel);
-      }).catch(() => {
-        setBatteryLevel(null);
-      });
-    }
-  }, []);
-
-  const toggleLowBatteryMode = () => {
-    setIsLowBatteryMode(prev => {
-      const next = !prev;
-      showToast(next ? 'Battery-Aware Emergency Mode enabled: Minimal UI, maximum GPS preservation' : 'Standard power profile restored', 'info');
-      return next;
-    });
   };
 
   // Cab Route Deviation & Unusual Behaviour Detection

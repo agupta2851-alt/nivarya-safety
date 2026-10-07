@@ -263,13 +263,16 @@ export const authService = {
     const users = getRegisteredUsers();
 
     // Match by email or clean mobile digits
+    const isEmailInput = cleanIdentifier.includes('@');
+    const inputDigits = cleanIdentifier.replace(/[^0-9]/g, '');
+
     const user = users.find(u => {
-      const matchEmail = u.email && u.email.toLowerCase() === cleanIdentifier;
+      const matchEmail = isEmailInput && u.email && u.email.toLowerCase() === cleanIdentifier;
       const uDigits = u.phone ? u.phone.replace(/[^0-9]/g, '') : '';
-      const inputDigits = cleanIdentifier.replace(/[^0-9]/g, '');
-      const matchPhone = uDigits.length >= 10 && inputDigits.length >= 10 && (
+      const matchPhone = !isEmailInput && uDigits.length >= 10 && inputDigits.length >= 10 && (
         uDigits.endsWith(inputDigits) || 
-        inputDigits.endsWith(uDigits)
+        inputDigits.endsWith(uDigits) ||
+        uDigits.slice(-10) === inputDigits.slice(-10)
       );
       return matchEmail || matchPhone;
     });

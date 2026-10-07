@@ -13,6 +13,7 @@ import NearbyRespondersModal from './components/NearbyRespondersModal';
 import LocationSharingModal from './components/LocationSharingModal';
 import LocationConsentModal from './components/LocationConsentModal';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Authentication Pages
 import LoginPage from './pages/LoginPage';
@@ -155,7 +156,9 @@ function MainApp() {
 
       {/* Main View Area */}
       <main className="main-content">
-        {renderCurrentPage()}
+        <ErrorBoundary fallbackTitle="Page View Recovery">
+          {renderCurrentPage()}
+        </ErrorBoundary>
       </main>
 
       {/* Full-Screen Emergency SOS Modal */}
