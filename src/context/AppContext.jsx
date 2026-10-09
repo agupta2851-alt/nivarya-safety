@@ -20,9 +20,23 @@ import {
 
 const AppContext = createContext();
 
+export function getAppBasePath() {
+  if (typeof window === 'undefined') return '';
+  const pathname = window.location.pathname || '';
+  if (pathname.startsWith('/nivarya-safety')) {
+    return '/nivarya-safety';
+  }
+  return '';
+}
+
 function getInitialRoute() {
   if (typeof window !== 'undefined') {
-    const pathname = window.location.pathname || '';
+    const rawPathname = window.location.pathname || '';
+    const basePath = getAppBasePath();
+    const pathname = basePath && rawPathname.startsWith(basePath) 
+      ? (rawPathname.slice(basePath.length) || '/') 
+      : rawPathname;
+
     if (/^\/track(?:\/|$)/i.test(pathname)) {
       const trackMatch = pathname.match(/^\/track(?:\/([^/?#]+))?/i);
       const rawId = (trackMatch && trackMatch[1]) 
@@ -57,7 +71,12 @@ export function AppProvider({ children }) {
   // Guarantee active tracking sync with browser URL on initial mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname || '';
+      const rawPathname = window.location.pathname || '';
+      const basePath = getAppBasePath();
+      const pathname = basePath && rawPathname.startsWith(basePath) 
+        ? (rawPathname.slice(basePath.length) || '/') 
+        : rawPathname;
+
       if (/^\/track(?:\/|$)/i.test(pathname)) {
         if (currentPage !== 'track') {
           setCurrentPageState('track');
@@ -79,12 +98,14 @@ export function AppProvider({ children }) {
       setCurrentTrackingId(options.trackingId);
     }
     if (typeof window !== 'undefined' && !options.skipPush) {
+      const basePath = getAppBasePath();
       const activeId = options.trackingId || currentTrackingId || generateTrackingId();
-      const targetPath = page === 'home' 
+      const targetSubPath = page === 'home' 
         ? '/' 
         : page === 'track' 
           ? `/track/${activeId}` 
           : `/${page}`;
+      const targetPath = basePath ? `${basePath}${targetSubPath === '/' ? '/' : targetSubPath}` : targetSubPath;
       if (window.location.pathname !== targetPath) {
         window.history.pushState({ page, trackingId: options.trackingId || currentTrackingId }, '', targetPath);
       }

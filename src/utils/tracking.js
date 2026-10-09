@@ -24,7 +24,12 @@ export function generateTrackingId() {
  */
 export function getTrackingBaseUrl() {
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
+    const origin = window.location.origin;
+    const pathname = window.location.pathname || '';
+    if (pathname.startsWith('/nivarya-safety')) {
+      return `${origin}/nivarya-safety`;
+    }
+    return origin;
   }
   return PRODUCTION_TRACKING_BASE_URL;
 }

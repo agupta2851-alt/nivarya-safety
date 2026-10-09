@@ -91,6 +91,7 @@ function devTrackingApiPlugin() {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.GITHUB_PAGES ? '/nivarya-safety/' : '/',
   plugins: [react(), devTrackingApiPlugin()],
 })
 
