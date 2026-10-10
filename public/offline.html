@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0B1120" />
+  <title>Offline Emergency Mode | NIVARYA</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0B1120;
+      color: #F1F5F9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .card {
+      max-width: 520px;
+      width: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 24px;
+      padding: 36px 24px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.15);
+    }
+    .icon-container {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px auto;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      margin-bottom: 16px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #EF4444;
+      box-shadow: 0 0 8px #EF4444;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #94A3B8;
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+    }
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.05);
+      color: #E2E8F0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .notice {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 0.85rem;
+      color: #A7F3D0;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-container">
+      <svg width="36" height="36" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 6L38 12V23C38 31.5 32 39.3 24 42C16 39.3 10 31.5 10 23V12L24 6Z" fill="#6366F1" fill-opacity="0.2" stroke="#818CF8" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M19 24L23 28L30 19" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="badge">
+      <span class="pulse-dot"></span>
+      <span>Offline Emergency Protocols Active</span>
+    </div>
+
+    <h1>No Internet Connection</h1>
+    <p>
+      You are currently disconnected, but Nivarya's offline safety tools and emergency direct dialers are active on your device.
+    </p>
+
+    <div class="button-group">
+      <a href="tel:112" class="btn btn-danger">
+        📞 Call 112 (Cellular Emergency)
+      </a>
+      <a href="sms:112?body=EMERGENCY%20ALERT%20(Nivarya%20Offline):%20I%20need%20urgent%20help.%20Please%20send%20assistance!" class="btn btn-outline">
+        💬 Draft Emergency SMS Alert
+      </a>
+      <a href="/dashboard" class="btn btn-primary">
+        🛡️ Reopen Safety Dashboard
+      </a>
+      <button onclick="window.location.reload()" class="btn btn-outline">
+        🔄 Retry Connection
+      </button>
+    </div>
+
+    <div class="notice">
+      ⚡ <strong>Cellular Guarantee:</strong> Direct phone calls to 112 and cellular SMS dispatch work over mobile telecommunication signals without Wi-Fi or active mobile internet data.
+    </div>
+  </div>
+</body>
+</html>
