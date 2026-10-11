@@ -48,6 +48,8 @@ import LiveTrackPage from './pages/LiveTrackPage';
 import './styles/globals.css';
 import './styles/components.css';
 
+import { extractTrackingIdFromUrl } from './utils/tracking';
+
 function MainApp() {
   const { 
     currentPage, 
@@ -61,12 +63,13 @@ function MainApp() {
   } = useApp();
 
   const renderCurrentPage = () => {
-    // Robust route check for /track/:trackingId or /track
+    // Robust route check for /track/:trackingId or /track (including base path and params)
     const pathname = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
-    const isTrackRoute = /^\/track(?:\/|$)/i.test(pathname) || currentPage === 'track';
+    const urlTrackingId = extractTrackingIdFromUrl();
+    const isTrackRoute = Boolean(urlTrackingId) || /(?:^|\/)track(?:\/|$)/i.test(pathname) || currentPage === 'track';
 
     if (isTrackRoute) {
-      return <LiveTrackPage trackingId={currentTrackingId} />;
+      return <LiveTrackPage trackingId={urlTrackingId || currentTrackingId} />;
     }
 
     switch (currentPage) {
@@ -137,10 +140,10 @@ function MainApp() {
           </ProtectedRoute>
         );
       case 'track':
-        return <LiveTrackPage trackingId={currentTrackingId} />;
+        return <LiveTrackPage trackingId={urlTrackingId || currentTrackingId} />;
       default:
-        if (/^\/track/i.test(pathname)) {
-          return <LiveTrackPage trackingId={currentTrackingId} />;
+        if (isTrackRoute) {
+          return <LiveTrackPage trackingId={urlTrackingId || currentTrackingId} />;
         }
         return <LandingPage />;
     }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { useApp } from '../context/AppContext';
 import { extendedMapHotspots } from '../data/initialData';
-import { buildTrackingUrl, generateTrackingId, shareOrCopyTrackingLink } from '../utils/tracking';
+import { buildTrackingUrl, generateTrackingId, shareOrCopyTrackingLink, extractTrackingIdFromUrl } from '../utils/tracking';
 import { databaseService } from '../services/databaseService';
 import { 
   Navigation, 
@@ -36,24 +36,15 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   const { 
     currentCoordinates, 
     userProfile, 
-    shareToken, 
-    currentTrackingId, 
-    sharingDuration, 
     activeJourney, 
     batteryLevel, 
     setCurrentPage, 
     showToast 
   } = useApp();
 
-  const getPathTrackingId = () => {
-    if (typeof window !== 'undefined') {
-      const m = (window.location.pathname || '').match(/^\/track(?:\/([^/?#]+))?/i);
-      if (m && m[1]) return decodeURIComponent(m[1].replace(/\/+$/, ''));
-    }
-    return null;
-  };
-
-  const activeId = propTrackingId || getPathTrackingId() || currentTrackingId || shareToken || generateTrackingId();
+  // Resolve tracking token: URL is primary source of truth, then prop
+  const urlId = extractTrackingIdFromUrl();
+  const activeId = urlId || propTrackingId || null;
 
   const [session, setSession] = useState(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
@@ -67,12 +58,17 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
 
   // Fetch tracking session from database / dev server / localStorage
   const loadTrackingSession = async () => {
+    if (!activeId) {
+      setSession(null);
+      setIsLoadingSession(false);
+      return;
+    }
     try {
       const data = await databaseService.getTrackingSession(activeId);
       if (data) {
         setSession(data);
-      } else if (activeJourney && activeJourney.isActive && (activeJourney.trackingId === activeId || currentTrackingId === activeId)) {
-        // Fallback for creator tab before database sync completes
+      } else if (activeJourney && activeJourney.isActive && activeJourney.trackingId === activeId) {
+        // Fallback ONLY for creator tab when this exact journey was launched locally
         const fallbackSession = {
           trackingId: activeId,
           userName: userProfile?.name || 'Nivarya Member',
@@ -101,7 +97,11 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
         if (directRaw) {
           try {
             setSession(JSON.parse(directRaw));
-          } catch (e) { /* ignore */ }
+          } catch (e) {
+            setSession(null);
+          }
+        } else {
+          setSession(null);
         }
       }
     } catch (err) {
@@ -114,6 +114,8 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   useEffect(() => {
     loadTrackingSession();
 
+    if (!activeId) return;
+
     // Poll every 3 seconds while active
     const pollInterval = setInterval(() => {
       loadTrackingSession();
@@ -121,6 +123,9 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
 
     const unsub = databaseService.subscribeToRealtimeUpdates((evt) => {
       if (evt?.table === 'tracking_sessions' || evt?.table === 'journeys') {
+        if (evt?.record?.trackingId && evt.record.trackingId !== activeId) {
+          return;
+        }
         loadTrackingSession();
       }
     });
@@ -149,17 +154,31 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
     session.status !== 'cancelled'
   );
 
-  const userName = session?.userName || userProfile?.name || 'Nivarya Member';
-  const userPhone = session?.userPhone || userProfile?.phone || '';
+  // Identity: Sender's broadcast name ONLY. Do NOT use recipient's userProfile!
+  const userName = session?.userName || 'Nivarya Member';
+  const userPhone = session?.userPhone || '';
   const cleanPhone = userPhone.replace(/[^0-9]/g, '');
   const firstName = userName.split(' ')[0] || 'Member';
 
-  // Coordinate resolution (real GPS data from active session or device)
+  // Check if current user is the actual creator viewing their own active journey
+  const isCreatorSelfView = Boolean(activeJourney && activeJourney.isActive && activeJourney.trackingId === activeId);
+
+  // Coordinate resolution: ONLY from the sender's session for recipients!
   const currentGpsCoords = session?.currentCoords?.lat != null 
     ? session.currentCoords 
-    : (isSessionActive && currentCoordinates?.lat != null ? currentCoordinates : null);
+    : (isCreatorSelfView && currentCoordinates?.lat != null ? currentCoordinates : null);
 
-  const hasGps = Boolean(currentGpsCoords && currentGpsCoords.lat != null);
+  const hasGps = Boolean(currentGpsCoords && currentGpsCoords.lat != null && currentGpsCoords.lng != null);
+
+  // Stale detection: > 90 seconds without GPS update
+  const lastUpdatedTime = session?.lastUpdated ? new Date(session.lastUpdated).getTime() : 0;
+  const isStale = Boolean(
+    isSessionActive && 
+    hasGps && 
+    lastUpdatedTime > 0 && 
+    (Date.now() - lastUpdatedTime > 90 * 1000)
+  );
+
   const coords = hasGps ? {
     lat: currentGpsCoords.lat,
     lng: currentGpsCoords.lng,
@@ -169,10 +188,14 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   } : {
     lat: null,
     lng: null,
-    address: session?.startPoint || 'Area not specified',
-    accuracy: 'Location Pending',
+    address: session?.startPoint || 'Coordinates pending transmission',
+    accuracy: 'Awaiting Satellite Lock',
     lastUpdated: lastRefreshed
   };
+
+  const displayBattery = session?.batteryLevel != null 
+    ? `${session.batteryLevel}%` 
+    : (isCreatorSelfView && batteryLevel != null ? `${batteryLevel}%` : 'Active');
 
   const handleShareLink = async () => {
     const url = buildTrackingUrl(activeId);
@@ -431,8 +454,33 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
         </div>
       )}
 
+      {/* CASE 0: Tracking Link Invalid or Not Found (Requirement 7) */}
+      {!isLoadingSession && !session && (
+        <div className="card" style={{ maxWidth: '640px', margin: '40px auto', padding: '36px 24px', textAlign: 'center', borderRadius: '18px', border: '1px solid rgba(239, 68, 68, 0.35)', background: 'rgba(15, 23, 42, 0.85)' }}>
+          <AlertCircle size={48} color="#EF4444" style={{ margin: '0 auto 16px auto' }} />
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '8px' }}>
+            Tracking Link Unavailable or Expired
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginBottom: '24px', lineHeight: 1.5, maxWidth: '500px', margin: '0 auto 24px auto' }}>
+            {activeId 
+              ? `No active journey matches tracking token "${activeId}". The journey may have concluded, expired, or the link is invalid.`
+              : 'No tracking token was found in this tracking URL. Please open the complete link shared by your friend.'}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <button onClick={handleRefresh} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <RefreshCw size={14} />
+              <span>Retry Connection</span>
+            </button>
+            <button onClick={() => setCurrentPage('home')} className="btn btn-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <ArrowLeft size={14} />
+              <span>Open Nivarya Home</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* CASE 1: Active Journey In Progress */}
-      {isSessionActive && (
+      {session && isSessionActive && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)',
           border: '1px solid rgba(16, 185, 129, 0.35)',
@@ -443,10 +491,24 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.2)', color: 'var(--safe-light)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block', boxShadow: '0 0 8px #10B981' }}></span>
-                <span>LIVE GPS BROADCAST ACTIVE</span>
-              </div>
+              {hasGps && !isStale && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.2)', color: 'var(--safe-light)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block', boxShadow: '0 0 8px #10B981' }}></span>
+                  <span>LIVE GPS BROADCAST ACTIVE</span>
+                </div>
+              )}
+              {hasGps && isStale && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(245, 158, 11, 0.2)', color: '#F59E0B', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px' }}>
+                  <AlertTriangle size={13} color="#F59E0B" />
+                  <span>GPS SIGNAL STALE • AWAITING SATELLITE UPDATE</span>
+                </div>
+              )}
+              {!hasGps && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary-light)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px' }}>
+                  <Radio size={13} color="var(--primary-light)" />
+                  <span>WAITING FOR TRAVELER SATELLITE FIX</span>
+                </div>
+              )}
               <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px 0' }}>
                 Tracking {userName}
               </h1>
@@ -473,10 +535,10 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
               <Battery size={15} color="var(--safe-light)" />
-              <span>Battery: <strong>{session?.batteryLevel || batteryLevel}%</strong></span>
+              <span>Battery: <strong>{displayBattery}</strong></span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              <Radio size={15} color="var(--info)" />
+              <Radio size={15} color={hasGps ? (isStale ? '#F59E0B' : 'var(--safe-light)') : 'var(--info)'} />
               <span>Accuracy: <strong>{coords.accuracy}</strong></span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
@@ -487,8 +549,8 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
         </div>
       )}
 
-      {/* CASE 2: Journey Ended / Inactive Session (Requirement 8) */}
-      {!isLoadingSession && !isSessionActive && (
+      {/* CASE 2: Journey Ended / Inactive Session */}
+      {session && !isSessionActive && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(71, 85, 105, 0.2) 0%, rgba(15, 23, 42, 0.9) 100%)',
           border: '1px solid rgba(148, 163, 184, 0.3)',
@@ -523,19 +585,21 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
         </div>
       )}
 
-      {/* Active Journey Route Card */}
+      {/* Details Sections: Route, Map, Telemetry, Emergency (Rendered ONLY when session exists) */}
       {session && (
-        <div style={{
-          background: 'rgba(15, 23, 42, 0.8)',
-          border: '1px solid var(--border-medium)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '20px',
-          marginBottom: '24px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isSessionActive ? 'var(--primary-light)' : '#94A3B8', fontWeight: 700, fontSize: '0.88rem' }}>
-              <JourneyModeIcon size={18} />
-              <span>{isSessionActive ? 'SAFE JOURNEY IN TRANSIT' : 'JOURNEY SUMMARY'}</span>
+        <>
+          {/* Active Journey Route Card */}
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.8)',
+            border: '1px solid var(--border-medium)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            marginBottom: '24px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isSessionActive ? 'var(--primary-light)' : '#94A3B8', fontWeight: 700, fontSize: '0.88rem' }}>
+                <JourneyModeIcon size={18} />
+                <span>{isSessionActive ? 'SAFE JOURNEY IN TRANSIT' : 'JOURNEY SUMMARY'}</span>
             </div>
             <span style={{ 
               fontSize: '0.8rem', 
@@ -570,7 +634,6 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
             <span>{session.destination || 'Destination'}</span>
           </div>
         </div>
-      )}
 
       {/* Map Section */}
       <div style={{
@@ -723,7 +786,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
                 style={{ justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px' }}
               >
                 <PhoneCall size={16} />
-                <span>Call {userName} ({userPhone})</span>
+                <span>Call Traveler ({userName})</span>
               </a>
             ) : null}
 
@@ -770,6 +833,8 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
           </div>
         </div>
       </div>
+    </>
+  )}
 
       {/* Security Assurance Banner (Requirement 7: Privacy Preserving) */}
       <div style={{

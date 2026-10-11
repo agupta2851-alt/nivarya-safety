@@ -781,30 +781,34 @@ export const databaseService = {
     if (!trackingId) return null;
     const cleanId = trackingId.trim();
 
+    let localSession = null;
+
     // 1. Check direct localStorage cache
     try {
       const directRaw = localStorage.getItem(`nivarya_track_${cleanId}`);
       if (directRaw) {
         const parsed = JSON.parse(directRaw);
         if (parsed && parsed.trackingId) {
-          // Check remote dev server in background for newer updates
-          this.fetchRemoteTrackingSession(cleanId).catch(() => {});
-          return parsed;
+          localSession = parsed;
         }
       }
     } catch (e) { /* ignore */ }
 
     // 2. Check local database table
-    const sessions = localDb.readTable(STORAGE_KEYS.TRACKING_SESSIONS, {});
-    if (sessions[cleanId]) {
-      return sessions[cleanId];
+    if (!localSession) {
+      const sessions = localDb.readTable(STORAGE_KEYS.TRACKING_SESSIONS, {});
+      if (sessions[cleanId]) {
+        localSession = sessions[cleanId];
+      }
     }
 
-    // 3. Attempt dev server API fetch
-    const remote = await this.fetchRemoteTrackingSession(cleanId);
-    if (remote) return remote;
+    // 3. Attempt dev server API fetch for fresh cross-device/cross-tab telemetry
+    try {
+      const remote = await this.fetchRemoteTrackingSession(cleanId);
+      if (remote) return remote;
+    } catch (e) { /* ignore */ }
 
-    return null;
+    return localSession;
   },
 
   async fetchRemoteTrackingSession(trackingId) {

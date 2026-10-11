@@ -7,7 +7,7 @@ import {
   safetyModesData 
 } from '../data/initialData';
 import { playCountdownBeep, startEmergencySiren, stopEmergencySiren } from '../utils/audio';
-import { generateTrackingId, buildTrackingUrl } from '../utils/tracking';
+import { generateTrackingId, buildTrackingUrl, extractTrackingIdFromUrl } from '../utils/tracking';
 import { authService, normalizePhoneNumber } from '../services/authService';
 import { databaseService } from '../services/databaseService';
 import { 
@@ -37,14 +37,11 @@ function getInitialRoute() {
       ? (rawPathname.slice(basePath.length) || '/') 
       : rawPathname;
 
-    if (/^\/track(?:\/|$)/i.test(pathname)) {
-      const trackMatch = pathname.match(/^\/track(?:\/([^/?#]+))?/i);
-      const rawId = (trackMatch && trackMatch[1]) 
-        ? decodeURIComponent(trackMatch[1].replace(/\/+$/, '')) 
-        : null;
+    const urlToken = extractTrackingIdFromUrl();
+    if (urlToken || /(?:^|\/)track(?:\/|$)/i.test(pathname)) {
       return {
         page: 'track',
-        trackingId: rawId || generateTrackingId()
+        trackingId: urlToken || null
       };
     }
     const cleanPath = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
@@ -66,27 +63,24 @@ export function AppProvider({ children }) {
   // Navigation: 'home' | 'login' | 'signup' | 'dashboard' | 'journey' | 'sos' | 'contacts' | 'map' | 'report' | 'community' | 'safebot' | 'resources' | 'profile' | 'about' | 'routes' | 'cab' | 'intel' | 'voice-gesture' | 'evidence' | 'privacy' | 'history' | 'track'
   const initialRoute = getInitialRoute();
   const [currentPage, setCurrentPageState] = useState(initialRoute.page);
-  const [currentTrackingId, setCurrentTrackingId] = useState(() => initialRoute.trackingId || generateTrackingId());
+  const [currentTrackingId, setCurrentTrackingId] = useState(() => initialRoute.trackingId || null);
 
   // Guarantee active tracking sync with browser URL on initial mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const urlToken = extractTrackingIdFromUrl();
       const rawPathname = window.location.pathname || '';
       const basePath = getAppBasePath();
       const pathname = basePath && rawPathname.startsWith(basePath) 
         ? (rawPathname.slice(basePath.length) || '/') 
         : rawPathname;
 
-      if (/^\/track(?:\/|$)/i.test(pathname)) {
+      if (urlToken || /(?:^|\/)track(?:\/|$)/i.test(pathname)) {
         if (currentPage !== 'track') {
           setCurrentPageState('track');
         }
-        const trackMatch = pathname.match(/^\/track(?:\/([^/?#]+))?/i);
-        if (trackMatch && trackMatch[1]) {
-          const rawId = decodeURIComponent(trackMatch[1].replace(/\/+$/, ''));
-          if (rawId && currentTrackingId !== rawId) {
-            setCurrentTrackingId(rawId);
-          }
+        if (urlToken && currentTrackingId !== urlToken) {
+          setCurrentTrackingId(urlToken);
         }
       }
     }
@@ -99,11 +93,11 @@ export function AppProvider({ children }) {
     }
     if (typeof window !== 'undefined' && !options.skipPush) {
       const basePath = getAppBasePath();
-      const activeId = options.trackingId || currentTrackingId || generateTrackingId();
+      const activeId = options.trackingId || currentTrackingId;
       const targetSubPath = page === 'home' 
         ? '/' 
         : page === 'track' 
-          ? `/track/${activeId}` 
+          ? (activeId ? `/track/${activeId}` : '/track') 
           : `/${page}`;
       const targetPath = basePath ? `${basePath}${targetSubPath === '/' ? '/' : targetSubPath}` : targetSubPath;
       if (window.location.pathname !== targetPath) {
@@ -114,9 +108,12 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const handlePopState = () => {
+      const urlToken = extractTrackingIdFromUrl();
       const route = getInitialRoute();
       setCurrentPageState(route.page);
-      if (route.trackingId) {
+      if (urlToken) {
+        setCurrentTrackingId(urlToken);
+      } else if (route.trackingId) {
         setCurrentTrackingId(route.trackingId);
       }
     };

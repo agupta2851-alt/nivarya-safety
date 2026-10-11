@@ -50,6 +50,52 @@ export function buildTrackingUrl(trackingId) {
 }
 
 /**
+ * Extracts and normalizes the tracking ID from the active browser URL.
+ * Inspects pathname (/track/:id, /nivarya-safety/track/:id),
+ * query parameters (?track=:id, ?id=:id, ?trackingId=:id),
+ * and hash fragments (#/track/:id).
+ *
+ * @returns {string|null} The resolved tracking ID, or null if not found.
+ */
+export function extractTrackingIdFromUrl() {
+  if (typeof window === 'undefined') return null;
+
+  // 1. Pathname
+  const pathname = window.location.pathname || '';
+  const pathMatch = pathname.match(/(?:^|\/)track(?:\/([^/?#]+))?/i);
+  if (pathMatch && pathMatch[1]) {
+    const raw = decodeURIComponent(pathMatch[1].replace(/\/+$/, '')).trim();
+    if (raw && raw.toLowerCase() !== 'undefined' && raw.toLowerCase() !== 'null') {
+      return raw;
+    }
+  }
+
+  // 2. Query parameters
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    const qVal = params.get('track') || params.get('trackingId') || params.get('id');
+    if (qVal && qVal.trim() && qVal.toLowerCase() !== 'undefined' && qVal.toLowerCase() !== 'null') {
+      return qVal.trim();
+    }
+  } catch (e) { /* ignore */ }
+
+  // 3. Hash routing
+  const hash = window.location.hash || '';
+  if (hash) {
+    const hashMatch = hash.match(/track[=/]([^/?#&]+)/i);
+    if (hashMatch && hashMatch[1]) {
+      const hVal = decodeURIComponent(hashMatch[1]).trim();
+      if (hVal && hVal.toLowerCase() !== 'undefined' && hVal.toLowerCase() !== 'null') {
+        return hVal;
+      }
+    }
+  }
+
+  return null;
+}
+
+
+/**
  * Formats the standard Nivarya journey sharing message.
  * Strictly adheres to requirement:
  * "Hi [Name], I'm sharing my live Nivarya journey with you. You can use this link to view my current journey/location while it is active:
