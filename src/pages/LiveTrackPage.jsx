@@ -32,6 +32,15 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+function getModeIcon(modeId) {
+  switch (modeId) {
+    case 'walk': return Footprints;
+    case 'metro': return Train;
+    case 'twoWheeler': return Bike;
+    default: return Car;
+  }
+}
+
 export default function LiveTrackPage({ trackingId: propTrackingId }) {
   const { 
     currentCoordinates, 
@@ -188,8 +197,8 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
   } : {
     lat: null,
     lng: null,
-    address: session?.startPoint || 'Coordinates pending transmission',
-    accuracy: 'Awaiting Satellite Lock',
+    address: session?.startPoint ? `Waiting for location (${session.startPoint})` : 'Waiting for location',
+    accuracy: 'Waiting for location',
     lastUpdated: lastRefreshed
   };
 
@@ -401,15 +410,6 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
     };
   }, []);
 
-  const getModeIcon = (modeId) => {
-    switch (modeId) {
-      case 'walk': return Footprints;
-      case 'metro': return Train;
-      case 'twoWheeler': return Bike;
-      default: return Car;
-    }
-  };
-
   const JourneyModeIcon = getModeIcon(session?.mode);
 
   return (
@@ -506,7 +506,7 @@ export default function LiveTrackPage({ trackingId: propTrackingId }) {
               {!hasGps && (
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary-light)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px' }}>
                   <Radio size={13} color="var(--primary-light)" />
-                  <span>WAITING FOR TRAVELER SATELLITE FIX</span>
+                  <span>WAITING FOR LOCATION • AWAITING GPS SIGNAL FROM TRAVELER</span>
                 </div>
               )}
               <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px 0' }}>

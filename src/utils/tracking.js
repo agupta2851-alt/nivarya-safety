@@ -57,11 +57,29 @@ export function buildTrackingUrl(trackingId) {
  *
  * @returns {string|null} The resolved tracking ID, or null if not found.
  */
-export function extractTrackingIdFromUrl() {
-  if (typeof window === 'undefined') return null;
+export function extractTrackingIdFromUrl(customUrl) {
+  let pathname = '';
+  let search = '';
+  let hash = '';
+
+  if (typeof customUrl === 'string' && customUrl.trim()) {
+    try {
+      const parsed = new URL(customUrl, 'https://nivarya-safety.vercel.app');
+      pathname = parsed.pathname || '';
+      search = parsed.search || '';
+      hash = parsed.hash || '';
+    } catch (e) {
+      pathname = customUrl;
+    }
+  } else if (typeof window !== 'undefined' && window.location) {
+    pathname = window.location.pathname || '';
+    search = window.location.search || '';
+    hash = window.location.hash || '';
+  } else {
+    return null;
+  }
 
   // 1. Pathname
-  const pathname = window.location.pathname || '';
   const pathMatch = pathname.match(/(?:^|\/)track(?:\/([^/?#]+))?/i);
   if (pathMatch && pathMatch[1]) {
     const raw = decodeURIComponent(pathMatch[1].replace(/\/+$/, '')).trim();
@@ -72,7 +90,7 @@ export function extractTrackingIdFromUrl() {
 
   // 2. Query parameters
   try {
-    const params = new URLSearchParams(window.location.search || '');
+    const params = new URLSearchParams(search);
     const qVal = params.get('track') || params.get('trackingId') || params.get('id');
     if (qVal && qVal.trim() && qVal.toLowerCase() !== 'undefined' && qVal.toLowerCase() !== 'null') {
       return qVal.trim();
@@ -80,7 +98,6 @@ export function extractTrackingIdFromUrl() {
   } catch (e) { /* ignore */ }
 
   // 3. Hash routing
-  const hash = window.location.hash || '';
   if (hash) {
     const hashMatch = hash.match(/track[=/]([^/?#&]+)/i);
     if (hashMatch && hashMatch[1]) {

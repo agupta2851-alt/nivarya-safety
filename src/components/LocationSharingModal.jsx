@@ -21,6 +21,7 @@ export default function LocationSharingModal({ isOpen, onClose }) {
     sharingDuration, 
     shareToken, 
     currentTrackingId,
+    activeJourney,
     startLocationSharing, 
     stopLocationSharing, 
     selectedContactsForJourney, 
@@ -33,7 +34,9 @@ export default function LocationSharingModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const trackingId = shareToken || currentTrackingId;
+  const trackingId = (activeJourney && activeJourney.isActive && activeJourney.trackingId)
+    ? activeJourney.trackingId
+    : (shareToken || currentTrackingId);
   const liveLink = buildTrackingUrl(trackingId);
 
   const copyLiveLink = async () => {

@@ -893,16 +893,27 @@ export function AppProvider({ children }) {
   const saveTrackingSession = (token, duration = '30m') => {
     const sessionData = {
       trackingId: token,
+      journeyId: activeJourney?.id || null,
       userName: userProfile.name || 'Nivarya Member',
+      startPoint: activeJourney?.startPoint || 'Current Location',
+      destination: activeJourney?.destination || 'Destination',
+      mode: activeJourney?.mode || 'cab',
+      progress: activeJourney?.progress || 0,
+      etaMinutes: activeJourney?.etaMinutes || null,
+      etaDisplay: activeJourney?.etaDisplay || 'ETA calculating...',
+      currentCoords: locationState.coords,
+      startCoords: activeJourney?.startCoords || locationState.coords,
+      destCoords: activeJourney?.destCoords || null,
+      status: activeJourney?.status || 'ACTIVE',
+      isActive: true,
       coords: locationState.coords,
       address: locationState.address || userProfile.location || (locationState.coords ? 'GPS Location' : 'Location Not Set'),
       city: userProfile.city || locationState.city || '',
       accuracy: locationState.coords ? `GPS (±${locationState.coords.accuracy}m)` : (locationState.status === 'denied' ? 'Permission Denied' : 'Manual Location'),
-      status: locationState.status,
-      source: locationState.source,
+      source: locationState.source || 'gps',
       batteryLevel: batteryLevel,
       duration: duration,
-      startedAt: new Date().toISOString()
+      startedAt: activeJourney?.startTime || new Date().toISOString()
     };
     try {
       localStorage.setItem(`nivarya_track_${token}`, JSON.stringify(sessionData));
@@ -912,12 +923,13 @@ export function AppProvider({ children }) {
   };
 
   const startLocationSharing = (duration = '30m') => {
-    const newToken = generateTrackingId();
+    const existingToken = (activeJourney && activeJourney.isActive && activeJourney.trackingId) ? activeJourney.trackingId : null;
+    const token = existingToken || generateTrackingId();
     setIsSharingLocation(true);
     setSharingDuration(duration);
-    setShareToken(newToken);
-    setCurrentTrackingId(newToken);
-    saveTrackingSession(newToken, duration);
+    setShareToken(token);
+    setCurrentTrackingId(token);
+    saveTrackingSession(token, duration);
     showToast(`Live GPS sharing active for ${duration === 'journey' ? 'journey duration' : duration}`, 'safe');
     addSafetyHistory({
       type: 'location',
