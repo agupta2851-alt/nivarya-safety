@@ -32,7 +32,10 @@ import {
   Sparkles, 
   Laptop, 
   CheckSquare, 
-  Square 
+  Square,
+  FileText,
+  ArrowRight,
+  RotateCcw
 } from 'lucide-react';
 
 export default function CyberShieldPage() {
@@ -57,12 +60,13 @@ export default function CyberShieldPage() {
   const [guideSearch, setGuideSearch] = useState('');
 
   // Feature 1 / 4: Harassment Evidence Checklist State
+  // Initialized to all false so user tracks authentic progress
   const [evidenceChecklist, setEvidenceChecklist] = useState({
-    urlAndHeader: false,
     timestampScreenshot: false,
+    urlAndHeader: false,
     phoneAndProfile: false,
     chatExport: false,
-    doNotDelete: true,
+    doNotDelete: false,
     fileReport1930: false
   });
 
@@ -73,6 +77,23 @@ export default function CyberShieldPage() {
       [key]: !prev[key]
     }));
   };
+
+  const handleResetChecklist = () => {
+    setEvidenceChecklist({
+      timestampScreenshot: false,
+      urlAndHeader: false,
+      phoneAndProfile: false,
+      chatExport: false,
+      doNotDelete: false,
+      fileReport1930: false
+    });
+    showToast('Checklist selections reset.', 'info');
+  };
+
+  const evidenceChecklistKeys = Object.keys(evidenceChecklist);
+  const totalChecklistItems = evidenceChecklistKeys.length;
+  const reviewedChecklistCount = evidenceChecklistKeys.filter(k => evidenceChecklist[k]).length;
+  const isChecklistComplete = totalChecklistItems > 0 && reviewedChecklistCount === totalChecklistItems;
 
   // URL Checker Handlers
   const handleScanUrl = (targetUrl = inputUrl) => {
@@ -1288,15 +1309,58 @@ export default function CyberShieldPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '28px' }}>
             {/* Pillar 1: Evidence Collection Checklist */}
             <div className="card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <CheckSquare size={18} color="var(--primary-light)" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-                  Digital Evidence Preservation Checklist
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckSquare size={18} color="var(--primary-light)" />
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                    Digital Evidence Preservation Checklist
+                  </h3>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: isChecklistComplete ? 'rgba(16, 185, 129, 0.2)' : reviewedChecklistCount > 0 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(148, 163, 184, 0.15)',
+                    color: isChecklistComplete ? '#34D399' : reviewedChecklistCount > 0 ? '#818CF8' : '#94A3B8'
+                  }}>
+                    {reviewedChecklistCount} of {totalChecklistItems} reviewed
+                  </span>
+                  {reviewedChecklistCount > 0 && (
+                    <button
+                      onClick={handleResetChecklist}
+                      title="Reset checklist"
+                      aria-label="Reset checklist selections"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <RotateCcw size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Real Progress Bar */}
+              <div style={{ height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden', marginBottom: '12px' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${(reviewedChecklistCount / totalChecklistItems) * 100}%`,
+                  background: isChecklistComplete ? 'var(--safe-light)' : 'linear-gradient(90deg, #6366F1, #818CF8)',
+                  transition: 'width 0.25s ease'
+                }} />
               </div>
 
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px', lineHeight: 1.4 }}>
-                Before blocking an abuser or reporting them to the platform, preserve legally admissible evidence:
+                Review and preserve relevant evidence before blocking or deleting threads, without putting yourself in danger:
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1306,11 +1370,20 @@ export default function CyberShieldPage() {
                   { key: 'phoneAndProfile', label: 'Record the phone number or originating email headers' },
                   { key: 'chatExport', label: 'Export complete chat history (e.g. WhatsApp "Export Chat Without Media")' },
                   { key: 'doNotDelete', label: 'DO NOT delete the chat thread or message requests prematurely' },
-                  { key: 'fileReport1930', label: 'File report on cybercrime.gov.in / dial 1930' }
+                  { key: 'fileReport1930', label: 'Prepare details for cybercrime.gov.in / helpline 1930' }
                 ].map(item => (
                   <div
                     key={item.key}
                     onClick={() => toggleChecklistItem(item.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        toggleChecklistItem(item.key);
+                      }
+                    }}
+                    role="checkbox"
+                    aria-checked={evidenceChecklist[item.key]}
+                    tabIndex={0}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1319,7 +1392,8 @@ export default function CyberShieldPage() {
                       background: 'var(--bg-surface-elevated)',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      border: '1px solid var(--border-subtle)'
+                      border: evidenceChecklist[item.key] ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-subtle)',
+                      transition: 'border 0.15s ease, background 0.15s ease'
                     }}
                   >
                     {evidenceChecklist[item.key] ? (
@@ -1327,12 +1401,35 @@ export default function CyberShieldPage() {
                     ) : (
                       <Square size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                     )}
-                    <span style={{ fontSize: '0.8rem', color: evidenceChecklist[item.key] ? '#FFFFFF' : '#CBD5E1', textDecoration: evidenceChecklist[item.key] ? 'line-through' : 'none' }}>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      color: evidenceChecklist[item.key] ? '#FFFFFF' : '#CBD5E1',
+                      textDecoration: evidenceChecklist[item.key] ? 'line-through' : 'none'
+                    }}>
                       {item.label}
                     </span>
                   </div>
                 ))}
               </div>
+
+              {/* Completion Banner */}
+              {isChecklistComplete && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px 14px',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <CheckCircle2 size={18} color="var(--safe-light)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.84rem', color: '#FFFFFF', fontWeight: 600, lineHeight: 1.35 }}>
+                    Evidence preservation checklist reviewed. You can now choose your next step.
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Pillar 2: Non-Consensual Image Sharing & Deepfakes */}
@@ -1375,6 +1472,192 @@ export default function CyberShieldPage() {
                     Select the specialized category: <em>"Report Crime Related to Women / Child"</em>. You can report anonymously if desired.
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* New Section: Next Steps & Report Safely */}
+          <div className="card" style={{ marginBottom: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-light)' }}>
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                    Next Steps & Report Safely
+                  </h3>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    Actionable, privacy-preserving guidance after reviewing your evidence checklist
+                  </div>
+                </div>
+              </div>
+
+              {isChecklistComplete && (
+                <span className="badge badge-safe">All 6 Items Reviewed</span>
+              )}
+            </div>
+
+            {/* Non-alarmist safety & admissibility guidance notice */}
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px'
+            }}>
+              <AlertTriangle size={18} color="#FBBF24" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '0.82rem', color: '#E2E8F0', lineHeight: 1.5 }}>
+                <strong style={{ color: '#FBBF24' }}>Safety & Legal Evidence Notice: </strong>
+                Your personal physical safety always comes first. Preserve relevant evidence only if doing so does not put you in danger. Do not confront or retaliate against an abuser. Note that preserving unedited screenshots is important for police inquiries, but formal legal admissibility in Indian courts is governed by statutory standards (including Section 65B of the Indian Evidence Act, 1872 / Section 63 of the Bharatiya Sakshya Adhiniyam, 2023) and law enforcement forensics; no software can guarantee that every screenshot or recording will be legally admissible. Nivarya never automatically uploads, transmits, or stores your private media—everything remains strictly on your local device.
+              </div>
+            </div>
+
+            {/* 4 Action Cards Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: '16px' }}>
+              {/* Card 1: Save Evidence Securely */}
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '14px',
+                padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Lock size={16} color="var(--safe-light)" />
+                    </div>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                      Save Evidence Securely
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#CBD5E1', lineHeight: 1.45, marginBottom: '12px' }}>
+                    Back up your unedited screenshots and exported chat archives in a private, password-protected local folder or offline storage device.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                    <li style={{ marginBottom: '4px' }}>Keep original uncompressed file formats without cropping or editing.</li>
+                    <li style={{ marginBottom: '4px' }}>Avoid saving to shared family cloud drives or public photo albums.</li>
+                    <li>Never upload intimate photos or sensitive data to unverified tools.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 2: Prepare an Incident Summary */}
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '14px',
+                padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FileText size={16} color="var(--primary-light)" />
+                    </div>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                      Prepare an Incident Summary
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#CBD5E1', lineHeight: 1.45, marginBottom: '12px' }}>
+                    Write a factual, chronological account of what occurred while events are fresh in your memory. A clear timeline speeds up legal assistance.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                    <li style={{ marginBottom: '4px' }}>Document exact dates, timestamps, communication platforms, and handles.</li>
+                    <li style={{ marginBottom: '4px' }}>List any phone numbers, email headers, or payment requests received.</li>
+                    <li>Keep notes objective and factual without modifying the evidence files.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 3: Report to National Cyber Crime Portal */}
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '14px',
+                padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ShieldAlert size={16} color="#F87171" />
+                    </div>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                      Report to Cyber Crime Portal
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#CBD5E1', lineHeight: 1.45, marginBottom: '12px' }}>
+                    File an official complaint with the Government of India's National Cyber Crime Reporting Portal.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4, marginBottom: '14px' }}>
+                    <li style={{ marginBottom: '4px' }}>Select "Report Crime Related to Women / Child" (anonymous reporting supported).</li>
+                    <li style={{ marginBottom: '4px' }}>Dial <strong>1930</strong> immediately for financial fraud or unauthorized transactions.</li>
+                    <li>Upload your preserved screenshots directly on the official portal.</li>
+                  </ul>
+                </div>
+                <a
+                  href="https://cybercrime.gov.in/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', justifyContent: 'center', width: '100%' }}
+                >
+                  <span>Visit cybercrime.gov.in</span>
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+
+              {/* Card 4: Improve Account Safety */}
+              <div style={{
+                background: 'var(--bg-surface-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '14px',
+                padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Key size={16} color="#FBBF24" />
+                    </div>
+                    <h4 style={{ fontSize: '0.96rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                      Improve Account Safety
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#CBD5E1', lineHeight: 1.45, marginBottom: '12px' }}>
+                    Prevent continued harassment or credential reuse by strengthening your digital account perimeters.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4, marginBottom: '14px' }}>
+                    <li style={{ marginBottom: '4px' }}>Update account passwords with 12+ character unique passphrases.</li>
+                    <li style={{ marginBottom: '4px' }}>Enable two-factor authentication (authenticator app preferred).</li>
+                    <li style={{ marginBottom: '4px' }}>Terminate unfamiliar active sessions in account settings.</li>
+                    <li>Block the harasser on social media ONLY AFTER evidence is preserved.</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={() => {
+                    setActiveTab('account-security');
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center', width: '100%' }}
+                >
+                  <span>Open Account Security Tab</span>
+                  <ArrowRight size={14} />
+                </button>
               </div>
             </div>
           </div>
