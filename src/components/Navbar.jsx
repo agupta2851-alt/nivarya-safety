@@ -5,6 +5,7 @@ import { availableLanguages } from '../data/translations';
 import { safetyModesData } from '../data/initialData';
 import { 
   Shield, 
+  ShieldCheck,
   AlertTriangle, 
   Globe, 
   Menu, 
@@ -100,10 +101,12 @@ export default function Navbar() {
     { id: 'map', label: t.nav.safetyMap || 'Safety Map', icon: <MapPin size={18} /> },
     { id: 'community', label: t.nav.community || 'Community', icon: <Users size={18} /> },
     { id: 'resources', label: t.nav.resources || 'Resources', icon: <FileText size={18} /> },
-    { id: 'safebot', label: t.nav.safeBot || 'SafeBot AI', icon: <Bot size={18} /> }
+    { id: 'safebot', label: t.nav.safeBot || 'SafeBot AI', icon: <Bot size={18} /> },
+    { id: 'cybershield', label: t.nav.cyberShield || 'CyberShield', icon: <ShieldCheck size={18} /> }
   ];
 
   const safetyToolsItems = [
+    { id: 'cybershield', label: 'CyberShield Threat Defense', icon: <ShieldCheck size={16} color="#34D399" />, desc: 'Phishing scanner, scam & harassment guides' },
     { id: 'routes', label: 'Safest Route Recommender', icon: <Compass size={16} color="#818CF8" />, desc: 'AI-analyzed well-lit corridors' },
     { id: 'cab', label: 'Cab Safety & Route Deviation', icon: <Car size={16} color="#EC4899" />, desc: 'Monitors ride variance & deterrent calls' },
     { id: 'voice-gesture', label: 'Voice & Shake SOS', icon: <Mic size={16} color="#F87171" />, desc: 'Hands-free sensor distress triggers' },
@@ -114,7 +117,7 @@ export default function Navbar() {
   ];
 
   const currentModeObj = safetyModesData.find(m => m.id === safetyMode) || safetyModesData[0];
-  const isSafetyToolsActive = ['routes', 'cab', 'intel', 'voice-gesture', 'evidence', 'history', 'privacy'].includes(currentPage);
+  const isSafetyToolsActive = ['routes', 'cab', 'intel', 'voice-gesture', 'evidence', 'history', 'privacy', 'cybershield'].includes(currentPage);
 
   const handleNavClick = (id) => {
     setCurrentPage(id);

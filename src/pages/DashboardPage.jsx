@@ -71,6 +71,13 @@ export default function DashboardPage() {
 
   const advancedTools = [
     {
+      id: 'cybershield',
+      title: 'CyberShield Threat Defense',
+      desc: 'Real-time phishing & URL scanner, cyber safety guide & harassment legal defense',
+      icon: <ShieldCheck size={22} color="#34D399" />,
+      badge: 'Zero-Knowledge Guard'
+    },
+    {
       id: 'routes',
       title: 'Safest Route Recommender',
       desc: 'AI scores routes by lighting, CCTV, and police presence',

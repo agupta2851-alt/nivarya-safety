@@ -43,6 +43,7 @@ import EvidenceRecordingPage from './pages/EvidenceRecordingPage';
 import PrivacyDashboardPage from './pages/PrivacyDashboardPage';
 import SafetyHistoryPage from './pages/SafetyHistoryPage';
 import LiveTrackPage from './pages/LiveTrackPage';
+import CyberShieldPage from './pages/CyberShieldPage';
 
 // Styles
 import './styles/globals.css';
@@ -141,6 +142,9 @@ function MainApp() {
         );
       case 'track':
         return <LiveTrackPage trackingId={urlTrackingId || currentTrackingId} />;
+      case 'cybershield':
+      case 'cyber-shield':
+        return <CyberShieldPage />;
       default:
         if (isTrackRoute) {
           return <LiveTrackPage trackingId={urlTrackingId || currentTrackingId} />;

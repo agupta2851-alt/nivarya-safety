@@ -28,7 +28,8 @@ export const translations = {
       safetyIntel: "Safety Intelligence",
       evidenceRecorder: "Evidence Recorder",
       safetyHistory: "Safety History",
-      privacy: "Privacy Dashboard"
+      privacy: "Privacy Dashboard",
+      cyberShield: "CyberShield"
     },
     dashboard: {
       welcome: "Welcome back,",
@@ -180,7 +181,8 @@ export const translations = {
       safetyIntel: "भविष्यवाणी सुरक्षा बुद्धिमत्ता",
       evidenceRecorder: "सबूत ऑडियो/वीडियो रिकॉर्डर",
       safetyHistory: "सुरक्षा इतिहास",
-      privacy: "गोपनीयता डैशबोर्ड"
+      privacy: "गोपनीयता डैशबोर्ड",
+      cyberShield: "साइबरशील्ड"
     },
     dashboard: {
       welcome: "स्वागत है,",

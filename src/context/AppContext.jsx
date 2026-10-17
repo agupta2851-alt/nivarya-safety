@@ -50,10 +50,11 @@ function getInitialRoute() {
       'dashboard', 'journey', 'sos', 'contacts', 'safety-circle', 'map', 'report',
       'community', 'safebot', 'resources', 'profile', 'about',
       'routes', 'cab', 'intel', 'voice-gesture', 'evidence',
-      'privacy', 'history', 'track'
+      'privacy', 'history', 'track', 'cybershield', 'cyber-shield'
     ];
     if (validPages.includes(cleanPath)) {
-      return { page: cleanPath === 'safety-circle' ? 'contacts' : cleanPath, trackingId: null };
+      const mappedPage = cleanPath === 'safety-circle' ? 'contacts' : cleanPath === 'cyber-shield' ? 'cybershield' : cleanPath;
+      return { page: mappedPage, trackingId: null };
     }
   }
   return { page: 'home', trackingId: null };
